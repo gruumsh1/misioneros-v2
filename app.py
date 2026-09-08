@@ -50,6 +50,11 @@ st.markdown("""
     border-width: 3px;
     background: #dbeafe;
 }
+.dia-recuadro.lunes {
+    background: #f3f4f6;
+    border-color: #9ca3af;
+    border-style: dashed;
+}
 .dia-recuadro.dia-vacio {
     background: transparent;
     border: none;
@@ -89,10 +94,17 @@ st.markdown("""
     margin-top: 4px;
     font-weight: bold;
 }
+.descanso-badge {
+    color: #6b7280;
+    font-size: 10px;
+    margin-top: 4px;
+    font-weight: bold;
+    font-style: italic;
+}
 </style>
 """, unsafe_allow_html=True)
 
-st.title("️ Calendario de Comidas para Misioneros")
+st.title("🍽️ Calendario de Comidas para Misioneros")
 
 # ============================================
 # CONEXIÓN A SUPABASE
@@ -113,16 +125,16 @@ try:
     response = supabase.table("comidas_misioneros").select("*").order("fecha", desc=False).execute()
     df_db = pd.DataFrame(response.data)
     if df_db.empty:
-        df_db = pd.DataFrame(columns=["companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
+        df_db = pd.DataFrame(columns=["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
     else:
         # Asegurar que las columnas existan
-        for col in ["companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"]:
+        for col in ["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"]:
             if col not in df_db.columns:
                 df_db[col] = ""
     st.sidebar.success(f"✅ {len(df_db)} registros cargados")
 except Exception as e:
     st.error(f"❌ Error al leer: {e}")
-    df_db = pd.DataFrame(columns=["companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
+    df_db = pd.DataFrame(columns=["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
 
 # ============================================
 # FILTROS EN SIDEBAR
@@ -161,7 +173,7 @@ if not df_db.empty:
     if "mes_ano" in df_mes.columns:
         df_mes = df_mes[df_mes["mes_ano"] == periodo_str]
 else:
-    df_mes = pd.DataFrame(columns=["companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
+    df_mes = pd.DataFrame(columns=["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
 
 # Crear diccionario de registros por fecha
 registros_por_fecha = {}
@@ -174,6 +186,7 @@ if not df_mes.empty:
         if fecha_str not in registros_por_fecha:
             registros_por_fecha[fecha_str] = []
         registros_por_fecha[fecha_str].append({
+            "id": row.get("id"),
             "familia": str(row.get("familia", "")),
             "telefono": str(row.get("telefono", "")),
             "notas": str(row.get("notas", "")) if pd.notna(row.get("notas")) else "",
@@ -214,20 +227,25 @@ for i in range(dia_semana_inicio):
 for dia in range(1, dias_mes + 1):
     fecha_actual = datetime.date(anio_sel, mes_sel, dia)
     fecha_str = str(fecha_actual)
+    es_lunes = (fecha_actual.weekday() == 0)  # 0 = Lunes
     
     es_hoy = (fecha_actual == hoy)
     tiene_registro = fecha_str in registros_por_fecha
     
     clase = "dia-recuadro"
-    if es_hoy:
+    if es_lunes:
+        clase += " lunes"
+    elif es_hoy:
         clase += " hoy"
-    if tiene_registro:
+    if tiene_registro and not es_lunes:
         clase += " ocupado"
     
     html_calendario += f'<div class="{clase}">'
     html_calendario += f'<div class="dia-numero">{dia}</div>'
     
-    if tiene_registro:
+    if es_lunes:
+        html_calendario += '<div class="descanso-badge">😴 Día de descanso</div>'
+    elif tiene_registro:
         for reg in registros_por_fecha[fecha_str]:
             familia = reg["familia"]
             telefono = reg["telefono"]
@@ -253,7 +271,7 @@ st.divider()
 # ============================================
 # TABS: Lista y Registro
 # ============================================
-tab1, tab2 = st.tabs(["📋 Lista de registros del mes", "️ Apuntarse a una fecha"])
+tab1, tab2 = st.tabs([" Lista de registros del mes", "✍️ Apuntarse a una fecha"])
 
 with tab1:
     st.subheader(f"Registros de {meses_nombres[mes_sel]} {anio_sel}")
@@ -264,19 +282,108 @@ with tab1:
         df_mostrar = df_mes.sort_values("fecha")[["fecha", "familia", "telefono", "notas"]].copy()
         st.dataframe(df_mostrar, use_container_width=True)
         
-        # Contador de registros
         st.metric("Total de registros este mes", len(df_mostrar))
+    
+    # ============================================
+    # SECCIÓN DE EDICIÓN Y ELIMINACIÓN
+    # ============================================
+    st.divider()
+    st.subheader("✏️ Editar o eliminar registros")
+    
+    if df_mes.empty:
+        st.info("No hay registros para editar.")
+    else:
+        # Mostrar registros con botones de editar/eliminar
+        df_ordenado = df_mes.sort_values("fecha").reset_index(drop=True)
+        
+        for idx, row in df_ordenado.iterrows():
+            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+            
+            with col1:
+                st.write(f"**📅 {row['fecha']}**")
+            with col2:
+                st.write(f"‍👩‍👧 {row['familia']}")
+            with col3:
+                st.write(f"📞 {row['telefono']}")
+            with col4:
+                # Botones de acción
+                if st.button("✏️", key=f"edit_{row['id']}", help="Editar"):
+                    st.session_state[f"editando_{row['id']}"] = True
+                if st.button("🗑️", key=f"del_{row['id']}", help="Eliminar"):
+                    st.session_state[f"eliminando_{row['id']}"] = True
+        
+        st.divider()
+        
+        # Procesar ediciones
+        for idx, row in df_ordenado.iterrows():
+            registro_id = row['id']
+            
+            if st.session_state.get(f"editando_{registro_id}"):
+                st.markdown(f"**✏️ Editando registro del {row['fecha']} - {row['familia']}**")
+                
+                with st.form(key=f"form_edit_{registro_id}"):
+                    col_e1, col_e2 = st.columns(2)
+                    with col_e1:
+                        e_nombre = st.text_input("Nombre", value=row['familia'], key=f"e_nom_{registro_id}")
+                        e_tel = st.text_input("Teléfono", value=row['telefono'], key=f"e_tel_{registro_id}")
+                    with col_e2:
+                        e_notas = st.text_area("Notas", value=row['notas'] if pd.notna(row['notas']) else "", key=f"e_not_{registro_id}")
+                    
+                    col_btn1, col_btn2 = st.columns(2)
+                    with col_btn1:
+                        guardar = st.form_submit_button(" Guardar cambios", use_container_width=True)
+                    with col_btn2:
+                        cancelar = st.form_submit_button("❌ Cancelar", use_container_width=True)
+                    
+                    if guardar:
+                        try:
+                            supabase.table("comidas_misioneros").update({
+                                "familia": e_nombre,
+                                "telefono": e_tel,
+                                "notas": e_notas,
+                            }).eq("id", registro_id).execute()
+                            st.success(f"✅ Registro actualizado correctamente")
+                            st.session_state[f"editando_{registro_id}"] = False
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error al actualizar: {e}")
+                    
+                    if cancelar:
+                        st.session_state[f"editando_{registro_id}"] = False
+                        st.rerun()
+            
+            if st.session_state.get(f"eliminando_{registro_id}"):
+                st.markdown(f"**🗑️ ¿Eliminar registro del {row['fecha']} - {row['familia']}?**")
+                
+                col_c1, col_c2 = st.columns(2)
+                with col_c1:
+                    if st.button("✅ Sí, eliminar", key=f"confirm_del_{registro_id}", type="primary"):
+                        try:
+                            supabase.table("comidas_misioneros").delete().eq("id", registro_id).execute()
+                            st.success(f"✅ Registro eliminado correctamente")
+                            st.session_state[f"eliminando_{registro_id}"] = False
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error al eliminar: {e}")
+                with col_c2:
+                    if st.button("❌ No, cancelar", key=f"cancel_del_{registro_id}"):
+                        st.session_state[f"eliminando_{registro_id}"] = False
+                        st.rerun()
 
 with tab2:
     st.subheader("Regístrate para darles de comer")
     
-    # Calcular fechas disponibles
+    # Calcular fechas disponibles (excluyendo lunes)
     fechas_ocupadas = set(registros_por_fecha.keys())
     fechas_disponibles = []
     for dia in range(1, dias_mes + 1):
         fecha = datetime.date(anio_sel, mes_sel, dia)
-        if str(fecha) not in fechas_ocupadas:
+        # Excluir lunes (weekday() == 0) y fechas ocupadas
+        if fecha.weekday() != 0 and str(fecha) not in fechas_ocupadas:
             fechas_disponibles.append(fecha)
+    
+    # Mostrar leyenda
+    st.info("ℹ️ **Nota:** Los lunes son día de descanso para los misioneros y no están disponibles para registro.")
     
     if not fechas_disponibles:
         st.warning("⚠️ No hay fechas disponibles este mes.")
@@ -290,11 +397,13 @@ with tab2:
                 min_value=datetime.date(anio_sel, mes_sel, 1),
                 max_value=datetime.date(anio_sel, mes_sel, dias_mes),
                 value=fechas_disponibles[0] if fechas_disponibles else datetime.date(anio_sel, mes_sel, 1),
-                help="Haz clic en el calendario para seleccionar una fecha disponible"
+                help="Haz clic en el calendario para seleccionar una fecha disponible (los lunes no aparecen)"
             )
             
-            # Validar si la fecha está disponible
-            if f_fecha in fechas_disponibles:
+            # Validar si la fecha está disponible y no es lunes
+            if f_fecha.weekday() == 0:
+                st.error(f"❌ {f_fecha.strftime('%d/%m/%Y')} es lunes (día de descanso). Selecciona otra fecha.")
+            elif f_fecha in fechas_disponibles:
                 st.success(f"✅ {f_fecha.strftime('%d/%m/%Y')} está disponible")
             else:
                 st.error(f"❌ {f_fecha.strftime('%d/%m/%Y')} ya está ocupada. Selecciona otra fecha.")
@@ -307,7 +416,7 @@ with tab2:
             
             if submitted:
                 if f_nombre and f_tel:
-                    if f_fecha in fechas_disponibles:
+                    if f_fecha.weekday() != 0 and f_fecha in fechas_disponibles:
                         nuevo_registro = {
                             "companerismo": zona,
                             "mes_ano": periodo_str,
@@ -322,7 +431,9 @@ with tab2:
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Error al guardar: {e}")
+                    elif f_fecha.weekday() == 0:
+                        st.error("❌ Los lunes son día de descanso. Por favor selecciona otro día.")
                     else:
                         st.error(f"❌ La fecha {f_fecha.strftime('%d/%m/%Y')} ya está ocupada. Por favor selecciona otra.")
                 else:
-                    st.error(" Por favor completa al menos el nombre y teléfono.")
+                    st.error("❌ Por favor completa al menos el nombre y teléfono.")
