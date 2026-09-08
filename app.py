@@ -1,13 +1,12 @@
 import datetime
 import pandas as pd
 import streamlit as st
-import gspread
-from google.oauth2.service_account import Credentials
+from streamlit_gsheets import GSheetsConnection
 
 st.set_page_config(page_title="Comidas Misioneros - Apizaco y Tlaxco", layout="wide")
-st.title("️ Calendario de Comidas para Misioneros")
+st.title("🍽️ Calendario de Comidas para Misioneros")
 
-# Conexión a Google Sheets usando secrets de Streamlit
+# 1. CONEXIÓN A GOOGLE SHEETS
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
     st.sidebar.success("✅ Conexión establecida")
@@ -15,32 +14,13 @@ except Exception as e:
     st.error(f"❌ Error de conexión: {e}")
     st.stop()
 
-# Autenticación directa con gspread
-try:
-    credentials = Credentials.from_service_account_info(
-        SERVICE_ACCOUNT_INFO,
-        scopes=["https://www.googleapis.com/auth/spreadsheets"]
-    )
-    gc = gspread.authorize(credentials)
-    
-    # Abrir la hoja de cálculo
-    spreadsheet_id = "1DEg_PWnzuzXeAL9r6GfHjphX_8we9rsDPgdQS5RT6Q0"
-    sh = gc.open_by_key(spreadsheet_id)
-    worksheet = sh.sheet1
-    
-    st.sidebar.success("✅ Conectado con gspread")
-except Exception as e:
-    st.error(f"❌ Error de conexión: {e}")
-    st.stop()
-
-# Columnas esperadas
+# 2. COLUMNAS ESPERADAS
 expected_columns = ["Compañerismo", "Mes-Año", "Fecha", "Familia / Hermano", "Teléfono", "Notas"]
 
-# Leer datos
+# 3. LEER DATOS
 try:
-    data = worksheet.get_all_records()
-    df_db = pd.DataFrame(data)
-    if df_db.empty or not all(col in df_db.columns for col in expected_columns):
+    df_db = conn.read(ttl=0)
+    if df_db is None or df_db.empty or not all(col in df_db.columns for col in expected_columns):
         df_db = pd.DataFrame(columns=expected_columns)
     else:
         df_db = df_db[expected_columns]
@@ -49,11 +29,17 @@ except Exception as e:
     st.error(f"❌ Error al leer: {e}")
     df_db = pd.DataFrame(columns=expected_columns)
 
-# Filtros
+# 4. FILTROS
 st.sidebar.header("Filtros de Visualización")
-zona = st.sidebar.selectbox("Compañerismo:", ["Apizaco 1 (Hno. Ulises / Galaviz)", "Apizaco 2 (Hno. Jorge Álvarez)", "Apizaco 3 (Hno. Jorge Luis Pérez)", "Tlaxco"])
+zona = st.sidebar.selectbox(
+    "Compañerismo:", 
+    ["Apizaco 1 (Hno. Ulises / Galaviz)", "Apizaco 2 (Hno. Jorge Álvarez)", "Apizaco 3 (Hno. Jorge Luis Pérez)", "Tlaxco"]
+)
 
-meses_nombres = {1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"}
+meses_nombres = {
+    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio", 
+    7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+}
 
 col_m, col_a = st.sidebar.columns(2)
 with col_m:
@@ -87,9 +73,17 @@ with tab2:
         
         if st.form_submit_button("Guardar Registro"):
             if f_nombre and f_tel and f_fecha.month == mes_sel and f_fecha.year == anio_sel:
-                nuevo = [zona, periodo_str, str(f_fecha), f_nombre, f_tel, f_notas]
+                nuevo = pd.DataFrame([{
+                    "Compañerismo": zona, 
+                    "Mes-Año": periodo_str, 
+                    "Fecha": str(f_fecha), 
+                    "Familia / Hermano": f_nombre, 
+                    "Teléfono": f_tel, 
+                    "Notas": f_notas
+                }])
                 try:
-                    worksheet.append_row(nuevo)
+                    df_actualizado = pd.concat([df_db.dropna(how="all"), nuevo], ignore_index=True)
+                    conn.update(data=df_actualizado)
                     st.success(f"✅ ¡Guardado con éxito para el {f_fecha}!")
                     st.rerun()
                 except Exception as e:
