@@ -5,9 +5,11 @@ from supabase import create_client, Client
 from datetime import timedelta
 
 st.set_page_config(page_title="Comidas Misioneros - Apizaco y Tlaxco", layout="wide")
-st.title("️ Calendario de Comidas para Misioneros")
+st.title("🍽️ Calendario de Comidas para Misioneros")
 
-# Conexión a Supabase
+# ============================================
+# CONEXIÓN A SUPABASE
+# ============================================
 try:
     supabase_url = st.secrets["supabase"]["url"]
     supabase_key = st.secrets["supabase"]["key"]
@@ -17,7 +19,9 @@ except Exception as e:
     st.error(f"❌ Error de conexión: {e}")
     st.stop()
 
-# Leer datos
+# ============================================
+# LEER DATOS
+# ============================================
 try:
     response = supabase.table("comidas_misioneros").select("*").execute()
     df_db = pd.DataFrame(response.data)
@@ -29,192 +33,247 @@ except Exception as e:
     df_db = pd.DataFrame(columns=["companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
 
 # ============================================
-# CALENDARIO VISUAL
+# FILTROS
 # ============================================
-st.sidebar.header(" Calendario")
-
-# Obtener mes y año actual
-hoy = datetime.date.today()
-mes_actual = st.sidebar.selectbox(
-    "Mes",
-    options=list(range(1, 13)),
-    format_func=lambda x: datetime.date(2026, x, 1).strftime("%B"),
-    index=hoy.month - 1
-)
-
-anio_actual = st.sidebar.selectbox("Año", options=[2026, 2027], index=0 if hoy.year == 2026 else 1)
-
-# Crear calendario
-def crear_calendario(mes, anio, df_registros):
-    """Crea una visualización de calendario con los días ocupados"""
-    # Primer día del mes
-    primer_dia = datetime.date(anio, mes, 1)
-    
-    # Último día del mes
-    if mes == 12:
-        ultimo_dia = datetime.date(anio + 1, 1, 1) - timedelta(days=1)
-    else:
-        ultimo_dia = datetime.date(anio, mes + 1, 1) - timedelta(days=1)
-    
-    # Días del mes
-    dias_mes = (ultimo_dia - primer_dia).days + 1
-    
-    # Crear DataFrame con todos los días del mes
-    todos_los_dias = [primer_dia + timedelta(days=i) for i in range(dias_mes)]
-    
-    # Obtener registros del mes
-    periodo_str = f"{anio}-{str(mes).zfill(2)}"
-    registros_mes = df_registros[df_registros["mes_ano"] == periodo_str] if not df_registros.empty else pd.DataFrame()
-    
-    # Crear diccionario de fechas ocupadas
-    fechas_ocupadas = {}
-    if not registros_mes.empty:
-        for _, row in registros_mes.iterrows():
-            fecha_str = row["fecha"]
-            if fecha_str in fechas_ocupadas:
-                fechas_ocupadas[fecha_str].append(row["familia"])
-            else:
-                fechas_ocupadas[fecha_str] = [row["familia"]]
-    
-    # Mostrar calendario
-    st.subheader(f"📆 {primer_dia.strftime('%B %Y').capitalize()}")
-    
-    # Días de la semana
-    dias_semana = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-    cols = st.columns(7)
-    for i, dia in enumerate(dias_semana):
-        cols[i].markdown(f"**{dia}**")
-    
-    # Ajustar para que el lunes sea el primer día
-    dia_semana_inicio = (primer_dia.weekday())  # 0 = lunes
-    
-    # Crear filas del calendario
-    dia_actual = 1
-    for semana in range(6):  # Máximo 6 semanas
-        cols = st.columns(7)
-        for dia_col in range(7):
-            if semana == 0 and dia_col < dia_semana_inicio:
-                # Celdas vacías antes del primer día
-                cols[dia_col].markdown("")
-            elif dia_actual > dias_mes:
-                # Fin del mes
-                cols[dia_col].markdown("")
-            else:
-                # Día del mes
-                fecha_completa = datetime.date(anio, mes, dia_actual)
-                fecha_str = str(fecha_completa)
-                
-                if fecha_str in fechas_ocupadas:
-                    # Día ocupado
-                    familias = fechas_ocupadas[fecha_str]
-                    cols[dia_col].markdown(f" **{dia_actual}**")
-                    cols[dia_col].caption(f"{', '.join(familias[:2])}")  # Mostrar hasta 2 familias
-                else:
-                    # Día disponible
-                    cols[dia_col].markdown(f"🟢 **{dia_actual}**")
-                
-                dia_actual += 1
-        
-        if dia_actual > dias_mes:
-            break
-
-# ============================================
-# FILTROS DE VISUALIZACIÓN
-# ============================================
-st.sidebar.header(" Filtros")
-
+st.sidebar.header("🎛️ Filtros")
 zona = st.sidebar.selectbox(
     "Compañerismo:",
     ["Apizaco 1 (Hno. Ulises / Galaviz)", "Apizaco 2 (Hno. Jorge Álvarez)", "Apizaco 3 (Hno. Jorge Luis Pérez)", "Tlaxco"],
 )
 
-# Mostrar calendario
-crear_calendario(mes_actual, anio_actual, df_db[df_db["companerismo"] == zona] if not df_db.empty else df_db)
+meses_nombres = {
+    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
+    7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre",
+}
+
+hoy = datetime.date.today()
+col_m, col_a = st.sidebar.columns(2)
+with col_m:
+    mes_sel = st.selectbox("Mes", options=list(meses_nombres.keys()), format_func=lambda x: meses_nombres[x], index=hoy.month - 1)
+with col_a:
+    anio_sel = st.selectbox("Año", options=[2025, 2026, 2027], index=1 if hoy.year == 2026 else (2 if hoy.year == 2027 else 0))
+
+# ============================================
+# CALENDARIO VISUAL TIPO RECUADROS
+# ============================================
+st.header(f"📆 {meses_nombres[mes_sel]} {anio_sel} — {zona}")
+
+# Preparar datos del mes
+periodo_str = f"{anio_sel}-{str(mes_sel).zfill(2)}"
+if not df_db.empty:
+    df_mes = df_db[df_db["companerismo"] == zona]
+    df_mes = df_mes[df_mes["mes_ano"] == periodo_str] if "mes_ano" in df_mes.columns else pd.DataFrame()
+else:
+    df_mes = pd.DataFrame()
+
+# Crear diccionario de registros por fecha
+registros_por_fecha = {}
+if not df_mes.empty:
+    for _, row in df_mes.iterrows():
+        fecha_str = str(row["fecha"])
+        if fecha_str not in registros_por_fecha:
+            registros_por_fecha[fecha_str] = []
+        registros_por_fecha[fecha_str].append({
+            "familia": row.get("familia", ""),
+            "telefono": row.get("telefono", ""),
+            "notas": row.get("notas", ""),
+        })
+
+# Calcular días del mes
+primer_dia = datetime.date(anio_sel, mes_sel, 1)
+if mes_sel == 12:
+    ultimo_dia = datetime.date(anio_sel + 1, 1, 1) - timedelta(days=1)
+else:
+    ultimo_dia = datetime.date(anio_sel, mes_sel + 1, 1) - timedelta(days=1)
+dias_mes = (ultimo_dia - primer_dia).days + 1
+
+# Día de la semana del primer día (0=Lunes, 6=Domingo)
+dia_semana_inicio = primer_dia.weekday()
+
+# CSS para el calendario
+calendario_css = """
+<style>
+.calendario-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    margin-top: 10px;
+}
+.dia-header {
+    background: #2c3e50;
+    color: white;
+    padding: 10px 5px;
+    text-align: center;
+    font-weight: bold;
+    border-radius: 6px;
+    font-size: 14px;
+}
+.dia-recuadro {
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 8px;
+    min-height: 100px;
+    background: #f8f9fa;
+    position: relative;
+}
+.dia-recuadro.ocupado {
+    background: #fff3cd;
+    border-color: #ffc107;
+}
+.dia-recuadro.hoy {
+    border-color: #007bff;
+    border-width: 3px;
+    background: #e7f1ff;
+}
+.dia-numero {
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 5px;
+}
+.dia-vacio {
+    background: transparent;
+    border: none;
+}
+.registro-item {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 6px;
+    margin-bottom: 4px;
+    font-size: 11px;
+}
+.registro-familia {
+    font-weight: bold;
+    color: #2c3e50;
+}
+.registro-tel {
+    color: #666;
+    font-size: 10px;
+}
+.registro-notas {
+    color: #888;
+    font-size: 10px;
+    font-style: italic;
+}
+.disponible-badge {
+    color: #28a745;
+    font-size: 10px;
+    margin-top: 4px;
+}
+</style>
+"""
+
+st.markdown(calendario_css, unsafe_allow_html=True)
+
+# Construir HTML del calendario
+dias_semana = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+
+html_calendario = '<div class="calendario-grid">'
+
+# Headers de días de la semana
+for dia in dias_semana:
+    html_calendario += f'<div class="dia-header">{dia}</div>'
+
+# Celdas vacías antes del primer día
+for i in range(dia_semana_inicio):
+    html_calendario += '<div class="dia-recuadro dia-vacio"></div>'
+
+# Días del mes
+for dia in range(1, dias_mes + 1):
+    fecha_actual = datetime.date(anio_sel, mes_sel, dia)
+    fecha_str = str(fecha_actual)
+    
+    es_hoy = (fecha_actual == hoy)
+    tiene_registro = fecha_str in registros_por_fecha
+    
+    clase = "dia-recuadro"
+    if es_hoy:
+        clase += " hoy"
+    if tiene_registro:
+        clase += " ocupado"
+    
+    html_calendario += f'<div class="{clase}">'
+    html_calendario += f'<div class="dia-numero">{dia}</div>'
+    
+    if tiene_registro:
+        for reg in registros_por_fecha[fecha_str]:
+            familia = reg["familia"]
+            telefono = reg["telefono"]
+            notas = reg.get("notas", "")
+            
+            html_calendario += '<div class="registro-item">'
+            html_calendario += f'<div class="registro-familia">👨👩‍👧 {familia}</div>'
+            html_calendario += f'<div class="registro-tel">📞 {telefono}</div>'
+            if notas:
+                html_calendario += f'<div class="registro-notas">📝 {notas}</div>'
+            html_calendario += '</div>'
+    else:
+        html_calendario += '<div class="disponible-badge">✅ Disponible</div>'
+    
+    html_calendario += '</div>'
+
+html_calendario += '</div>'
+
+st.markdown(html_calendario, unsafe_allow_html=True)
 
 st.divider()
 
 # ============================================
-# TABS
+# TABS: Lista y Registro
 # ============================================
-tab1, tab2 = st.tabs(["📋 Ver Registros del Mes", "✍️ Apuntarse a una fecha"])
+tab1, tab2 = st.tabs(["📋 Lista de registros", "✍️ Apuntarse a una fecha"])
 
 with tab1:
-    st.subheader(f"Registros de {datetime.date(anio_actual, mes_actual, 1).strftime('%B %Y').capitalize()}")
-    periodo_str = f"{anio_actual}-{str(mes_actual).zfill(2)}"
+    st.subheader(f"Registros de {meses_nombres[mes_sel]} {anio_sel}")
     
-    if not df_db.empty:
-        df_filtrado = df_db[
-            (df_db["companerismo"] == zona) & 
-            (df_db["mes_ano"] == periodo_str)
-        ]
+    if df_mes.empty:
+        st.info(f"Aún no hay familias registradas para este mes.")
     else:
-        df_filtrado = pd.DataFrame(columns=["companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
-    
-    if df_filtrado.empty:
-        st.info(f"Aún no hay familias registradas para {datetime.date(anio_actual, mes_actual, 1).strftime('%B %Y')} en este compañerismo.")
-    else:
-        # Ordenar por fecha
-        df_filtrado = df_filtrado.sort_values("fecha")
-        st.dataframe(
-            df_filtrado[["fecha", "familia", "telefono", "notas"]],
-            use_container_width=True
-        )
+        df_mostrar = df_mes.sort_values("fecha")[["fecha", "familia", "telefono", "notas"]]
+        st.dataframe(df_mostrar, use_container_width=True)
 
 with tab2:
     st.subheader("Regístrate para darles de comer")
     
-    with st.form("form_registro_mes", clear_on_submit=True):
-        # Mostrar fechas disponibles
-        st.write("**Fechas disponibles este mes:**")
-        periodo_str = f"{anio_actual}-{str(mes_actual).zfill(2)}"
-        
-        if not df_db.empty:
-            registros_mes = df_db[df_db["mes_ano"] == periodo_str]
-            fechas_ocupadas = registros_mes["fecha"].tolist() if not registros_mes.empty else []
-        else:
-            fechas_ocupadas = []
-        
-        # Crear lista de fechas disponibles
-        primer_dia = datetime.date(anio_actual, mes_actual, 1)
-        if mes_actual == 12:
-            ultimo_dia = datetime.date(anio_actual + 1, 1, 1) - timedelta(days=1)
-        else:
-            ultimo_dia = datetime.date(anio_actual, mes_actual + 1, 1) - timedelta(days=1)
-        
-        fechas_disponibles = [
-            (primer_dia + timedelta(days=i)).strftime("%Y-%m-%d")
-            for i in range((ultimo_dia - primer_dia).days + 1)
-            if (primer_dia + timedelta(days=i)).strftime("%Y-%m-%d") not in fechas_ocupadas
-        ]
-        
-        if not fechas_disponibles:
-            st.warning("No hay fechas disponibles este mes.")
-        
-        f_fecha = st.selectbox("Selecciona una fecha disponible", fechas_disponibles if fechas_disponibles else [])
-        f_nombre = st.text_input("Nombre de la Familia / Persona")
-        f_tel = st.text_input("Número de Teléfono (WhatsApp)")
-        f_notas = st.text_area("Notas adicionales (ej. hora acordada, restricciones)")
-        
-        submitted = st.form_submit_button("Guardar Registro")
-        
-        if submitted:
-            if f_nombre and f_tel and f_fecha:
-                fecha_obj = datetime.datetime.strptime(f_fecha, "%Y-%m-%d").date()
-                
-                nuevo_registro = {
-                    "companerismo": zona,
-                    "mes_ano": periodo_str,
-                    "fecha": f_fecha,
-                    "familia": f_nombre,
-                    "telefono": f_tel,
-                    "notas": f_notas,
-                }
-                
-                try:
-                    supabase.table("comidas_misioneros").insert(nuevo_registro).execute()
-                    st.success(f"✅ ¡Gracias {f_nombre}! Tu registro para el {fecha_obj.strftime('%d/%m/%Y')} se ha guardado.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Error al guardar: {e}")
-            else:
-                st.error("❌ Por favor completa todos los campos requeridos.")
+    # Fechas disponibles
+    fechas_ocupadas = set(registros_por_fecha.keys())
+    fechas_disponibles = []
+    for dia in range(1, dias_mes + 1):
+        fecha = datetime.date(anio_sel, mes_sel, dia)
+        if str(fecha) not in fechas_ocupadas:
+            fechas_disponibles.append(fecha)
+    
+    if not fechas_disponibles:
+        st.warning("⚠️ No hay fechas disponibles este mes.")
+    else:
+        with st.form("form_registro", clear_on_submit=True):
+            f_fecha = st.selectbox(
+                "Selecciona una fecha disponible",
+                options=fechas_disponibles,
+                format_func=lambda x: f"{x.strftime('%d/%m/%Y')} ({['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'][x.weekday()]})"
+            )
+            f_nombre = st.text_input("Nombre de la Familia / Persona")
+            f_tel = st.text_input("Número de Teléfono (WhatsApp)")
+            f_notas = st.text_area("Notas adicionales (ej. hora acordada, restricciones)")
+            
+            submitted = st.form_submit_button(" Guardar Registro")
+            
+            if submitted:
+                if f_nombre and f_tel:
+                    nuevo_registro = {
+                        "companerismo": zona,
+                        "mes_ano": periodo_str,
+                        "fecha": str(f_fecha),
+                        "familia": f_nombre,
+                        "telefono": f_tel,
+                        "notas": f_notas,
+                    }
+                    try:
+                        supabase.table("comidas_misioneros").insert(nuevo_registro).execute()
+                        st.success(f"✅ ¡Gracias {f_nombre}! Registro guardado para el {f_fecha.strftime('%d/%m/%Y')}.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Error al guardar: {e}")
+                else:
+                    st.error("❌ Por favor completa nombre y teléfono.")
