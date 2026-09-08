@@ -15,30 +15,31 @@ st.set_page_config(
 )
 
 # ============================================
-# ESTILOS: paleta clara, WCAG 2.1, táctil
+# ESTILOS: paleta inspirada en la identidad de la Iglesia
+# Blanco + azul profundo + azul medio + dorado templado
 # ============================================
 st.markdown("""
 <style>
 /* Tipografía base: 17px, interlineado 1.6 (WCAG 1.4) */
 html{font-size:17px}
-body,.stMarkdown,p,li{color:#2B2A28}
+body,.stMarkdown,p,li{color:#1F2A37}
 p,li{line-height:1.6}
-h1{font-size:1.7rem;font-weight:800}
-h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem}
-.muted{color:#6B6862;font-size:.95rem;line-height:1.5}
+h1{font-size:1.7rem;font-weight:800;color:#12395B}
+h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem;color:#12395B}
+.muted{color:#55677A;font-size:.95rem;line-height:1.5}
 
 /* Ocultar sidebar y pie de Streamlit */
 [data-testid="stSidebar"]{display:none}
 #MainMenu,footer{visibility:hidden}
 
-/* Tarjetas (containers con borde) */
-[data-testid="stVerticalBlockBorderWrapper"]{background:#F3F2EE;border-color:#E5E3DD;border-radius:14px}
-[data-testid="stVerticalBlockBorderWrapper"] > div{background:#F3F2EE}
+/* Tarjetas */
+[data-testid="stVerticalBlockBorderWrapper"]{background:#F2F6FA;border-color:#D9E1EA;border-radius:14px}
+[data-testid="stVerticalBlockBorderWrapper"] > div{background:#F2F6FA}
 
 /* Botones táctiles: mínimo 48px (WCAG 2.5.5) */
 [data-testid="stButton"] button,[data-testid="stForm"] button{
   min-height:48px;font-size:1rem;font-weight:600;border-radius:10px}
-[data-testid="stBaseButton-primary"]{background:#E76F51 !important;color:#2B2A28 !important;border:none !important}
+[data-testid="stBaseButton-primary"]{background:#1668C3 !important;color:#FFFFFF !important;border:none !important}
 
 /* Pills y control segmentado: objetivos >=44px */
 [data-testid="stPills"] button,[data-testid="stSegmentedControl"] button{
@@ -47,40 +48,40 @@ h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem}
 /* Campos de texto grandes y legibles */
 [data-testid="stTextInput"] input,[data-testid="stDateInput"] input,
 [data-testid="stTextArea"] textarea{
-  min-height:48px;font-size:1rem;border-color:#C9C6BF;border-radius:10px}
+  min-height:48px;font-size:1rem;border-color:#B9C2CC;border-radius:10px}
 
 /* Foco siempre visible (WCAG 2.4.7) */
-:focus-visible{outline:3px solid #2B2A28;outline-offset:2px}
+:focus-visible{outline:3px solid #12395B;outline-offset:2px}
 
 /* Calendario */
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:.6rem}
-.cal-head{background:#2B2A28;color:#FAFAF8;text-align:center;font-weight:700;
+.cal-head{background:#12395B;color:#FFFFFF;text-align:center;font-weight:700;
   font-size:.8rem;padding:8px 2px;border-radius:8px;letter-spacing:.03em}
-.cal-cell{background:#FFFFFF;border:1.5px solid #E5E3DD;border-radius:10px;padding:6px 4px;min-height:92px}
-.cal-cell.ocupado{background:#FBE9E4;border-color:#E76F51}
-.cal-cell.hoy{border:3px solid #2B2A28}
-.cal-cell.lunes{background:#EEEDE9;border-style:dashed;border-color:#C9C6BF}
+.cal-cell{background:#FFFFFF;border:1.5px solid #D9E1EA;border-radius:10px;padding:6px 4px;min-height:92px}
+.cal-cell.ocupado{background:#E7F0FA;border-color:#1668C3}
+.cal-cell.hoy{border:3px solid #B98A2E}
+.cal-cell.lunes{background:#EEF1F4;border-style:dashed;border-color:#B9C2CC}
 .cal-cell.vacio{border:none;background:transparent;min-height:0}
-.cal-day{font-size:1.05rem;font-weight:800;color:#2B2A28}
+.cal-day{font-size:1.05rem;font-weight:800;color:#1F2A37}
 .cal-state{font-size:.68rem;font-weight:700;letter-spacing:.05em;margin-top:2px}
-.st-libre{color:#295F38}
-.st-ocupado{color:#8A3324}
-.st-descanso{color:#6B6862}
-.cal-fam{font-size:.72rem;color:#2B2A28;font-weight:600;margin-top:3px;line-height:1.25;word-break:break-word}
-.cal-tel{font-size:.68rem;color:#6B6862;word-break:break-word}
+.st-libre{color:#2E6B34}
+.st-ocupado{color:#0F4C81}
+.st-descanso{color:#55677A}
+.cal-fam{font-size:.72rem;color:#1F2A37;font-weight:600;margin-top:3px;line-height:1.25;word-break:break-word}
+.cal-tel{font-size:.68rem;color:#55677A;word-break:break-word}
 
 /* Lista de registros */
-.reg-row{background:#FFFFFF;border:1px solid #E5E3DD;border-radius:10px;padding:.6rem .7rem;margin-bottom:.5rem}
-.reg-fecha{font-weight:800;font-size:1rem}
+.reg-row{background:#FFFFFF;border:1px solid #D9E1EA;border-radius:10px;padding:.6rem .7rem;margin-bottom:.5rem}
+.reg-fecha{font-weight:800;font-size:1rem;color:#12395B}
 .reg-fam{font-weight:600}
-.reg-row a{color:#8A3324;font-weight:700}
+.reg-row a{color:#0F4C81;font-weight:700}
 
 /* Leyenda con texto (no solo color, WCAG 1.4.1) */
-.legend{display:flex;gap:.9rem;flex-wrap:wrap;margin-top:.7rem;font-size:.85rem;color:#2B2A28}
-.chip{display:inline-block;width:14px;height:14px;border-radius:4px;border:1.5px solid #E5E3DD;vertical-align:-2px;margin-right:6px}
+.legend{display:flex;gap:.9rem;flex-wrap:wrap;margin-top:.7rem;font-size:.85rem;color:#1F2A37}
+.chip{display:inline-block;width:14px;height:14px;border-radius:4px;border:1.5px solid #D9E1EA;vertical-align:-2px;margin-right:6px}
 .chip-libre{background:#FFFFFF}
-.chip-ocup{background:#FBE9E4;border-color:#E76F51}
-.chip-desc{background:#EEEDE9;border-style:dashed;border-color:#C9C6BF}
+.chip-ocup{background:#E7F0FA;border-color:#1668C3}
+.chip-desc{background:#EEF1F4;border-style:dashed;border-color:#B9C2CC}
 
 /* Móvil: calendario compacto, detalles quedan en la lista */
 @media (max-width:640px){
@@ -219,7 +220,7 @@ with st.container(border=True):
     with c2:
         y_view, m_view = st.session_state.view_ym
         st.markdown(
-            f"<p style='text-align:center;font-weight:800;font-size:1.15rem;margin:0;padding:.55rem 0'>{meses_nombres[m_view]} {y_view}</p>",
+            f"<p style='text-align:center;font-weight:800;font-size:1.15rem;margin:0;padding:.55rem 0;color:#12395B'>{meses_nombres[m_view]} {y_view}</p>",
             unsafe_allow_html=True,
         )
     with c3:
