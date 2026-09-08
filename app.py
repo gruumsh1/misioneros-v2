@@ -3,7 +3,6 @@ import pandas as pd
 import streamlit as st
 from supabase import create_client, Client
 from datetime import timedelta
-import math
 
 # ============================================
 # CONFIGURACIÓN DE PÁGINA
@@ -15,7 +14,7 @@ st.set_page_config(
 )
 
 # ============================================
-# CSS RESPONSIVE Y CALENDARIO
+# CSS RESPONSIVE
 # ============================================
 st.markdown("""
 <style>
@@ -48,33 +47,18 @@ st.markdown("""
         font-size: 10px !important;
         padding: 6px 2px !important;
     }
-    h1 {
-        font-size: 1.3rem !important;
-    }
-    h2 {
-        font-size: 1.1rem !important;
-    }
+    h1 { font-size: 1.3rem !important; }
+    h2 { font-size: 1.1rem !important; }
 }
 
 @media (max-width: 480px) {
-    .calendario-grid {
-        gap: 1px !important;
-    }
-    .dia-recuadro {
-        min-height: 45px !important;
-    }
-    .registro-item {
-        display: none !important;
-    }
-    .disponible-badge, .descanso-badge {
-        font-size: 6px !important;
-    }
+    .calendario-grid { gap: 1px !important; }
+    .dia-recuadro { min-height: 45px !important; }
+    .registro-item { display: none !important; }
+    .disponible-badge, .descanso-badge { font-size: 6px !important; }
 }
 
-.calendario-container {
-    margin-top: 20px;
-    margin-bottom: 20px;
-}
+.calendario-container { margin-top: 20px; margin-bottom: 20px; }
 .calendario-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
@@ -193,6 +177,28 @@ except Exception as e:
     df_db = pd.DataFrame(columns=["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
 
 # ============================================
+# MAPEO DE NOMBRES ANTIGUOS A NUEVOS
+# ============================================
+# Esto convierte los nombres viejos en los nuevos automáticamente
+mapeo_nombres = {
+    # Nombres antiguos → Nombres nuevos
+    "Apizaco 1 (Hno. Ulises / Galaviz)": "Compañerismo 1",
+    "Apizaco 2 (Hno. Jorge Álvarez)": "Compañerismo 2 (San José, Tetel, Santa Rosa, Cerrito, Zumpango)",
+    "Apizaco 3 (Hno. Jorge Luis Pérez)": "Compañerismo 3 (Centro, Xaltocan, Santa Úrsula, San Simón)",
+    "Tlaxco": "Compañerismo 4 (Tlaxco)",
+    
+    # Variaciones posibles
+    "Compañerismo 1": "Compañerismo 1",
+    "Compañerismo 2": "Compañerismo 2 (San José, Tetel, Santa Rosa, Cerrito, Zumpango)",
+    "Compañerismo 3": "Compañerismo 3 (Centro, Xaltocan, Santa Úrsula, San Simón)",
+    "Compañerismo 4": "Compañerismo 4 (Tlaxco)",
+}
+
+# Aplicar el mapeo a los datos existentes
+if not df_db.empty and "companerismo" in df_db.columns:
+    df_db["companerismo_normalizado"] = df_db["companerismo"].map(mapeo_nombres).fillna(df_db["companerismo"])
+
+# ============================================
 # CONFIGURACIÓN DE COMPAÑERISMOS
 # ============================================
 zonas_disponibles = [
@@ -205,7 +211,7 @@ zonas_disponibles = [
 # ============================================
 # FILTROS EN SIDEBAR
 # ============================================
-st.sidebar.header("️ Filtros")
+st.sidebar.header("🎛️ Filtros")
 
 zona = st.sidebar.selectbox(
     "Compañerismo:",
@@ -239,7 +245,9 @@ with col_a:
 periodo_str = f"{anio_sel}-{str(mes_sel).zfill(2)}"
 
 if not df_db.empty:
-    df_mes = df_db[df_db["companerismo"] == zona].copy()
+    # Usar la columna normalizada si existe, si no usar la original
+    col_companerismo = "companerismo_normalizado" if "companerismo_normalizado" in df_db.columns else "companerismo"
+    df_mes = df_db[df_db[col_companerismo] == zona].copy()
     if "mes_ano" in df_mes.columns:
         df_mes = df_mes[df_mes["mes_ano"] == periodo_str]
 else:
@@ -314,10 +322,10 @@ for dia in range(1, dias_mes + 1):
             notas = reg.get("notas", "")
             
             html_calendario += '<div class="registro-item">'
-            html_calendario += f'<div class="registro-familia">‍👩‍👧 {familia}</div>'
-            html_calendario += f'<div class="registro-tel"> {telefono}</div>'
+            html_calendario += f'<div class="registro-familia">👨‍👩‍👧 {familia}</div>'
+            html_calendario += f'<div class="registro-tel">📞 {telefono}</div>'
             if notas:
-                html_calendario += f'<div class="registro-notas">📝 {notas}</div>'
+                html_calendario += f'<div class="registro-notas"> {notas}</div>'
             html_calendario += '</div>'
     else:
         html_calendario += '<div class="disponible-badge">✅ Libre</div>'
@@ -358,7 +366,7 @@ with tab1:
         
         with st.form("login_form"):
             password = st.text_input("Contraseña", type="password")
-            submitted = st.form_submit_button("🔓 Ingresar", use_container_width=True)
+            submitted = st.form_submit_button(" Ingresar", use_container_width=True)
             
             if submitted:
                 admin_password = st.secrets.get("admin", {}).get("password", "")
@@ -397,7 +405,7 @@ with tab1:
                         )
                         st.success(f"✅ {len(df_completo)} registros listos")
                 except Exception as e:
-                    st.error(f" Error: {e}")
+                    st.error(f"❌ Error: {e}")
         
         with col_b2:
             if st.button(f"📥 Exportar {meses_nombres[mes_sel]} {anio_sel}", use_container_width=True):
@@ -431,9 +439,9 @@ with tab1:
                 with col1:
                     st.write(f"**📅 {row['fecha']}**")
                 with col2:
-                    st.write(f"👨‍👩👧 {row['familia']}")
+                    st.write(f"👨‍👩‍👧 {row['familia']}")
                 with col3:
-                    st.write(f" {row['telefono']}")
+                    st.write(f"📞 {row['telefono']}")
                 with col4:
                     if st.button("✏️", key=f"edit_{row['id']}", help="Editar"):
                         st.session_state[f"editando_{row['id']}"] = True
@@ -507,7 +515,7 @@ with tab2:
         if fecha.weekday() != 0 and str(fecha) not in fechas_ocupadas:
             fechas_disponibles.append(fecha)
     
-    st.info("️ **Nota:** Los lunes son día de descanso y no están disponibles.")
+    st.info("ℹ️ **Nota:** Los lunes son día de descanso y no están disponibles.")
     
     if not fechas_disponibles:
         st.warning("⚠️ No hay fechas disponibles este mes.")
