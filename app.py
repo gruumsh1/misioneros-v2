@@ -143,7 +143,7 @@ st.sidebar.header("🎛️ Filtros")
 
 zona = st.sidebar.selectbox(
     "Compañerismo:",
-    ["Apizaco 1 (Hno. Ulises / Galaviz)", "Apizaco 2 (Hno. Jorge Álvarez)", "Apizaco 3 (Hno. Jorge Luis Pérez)", "Tlaxco"],
+    ["Apizaco 1", "Apizaco 2", "Apizaco 3", "Tlaxco"],
 )
 
 meses_nombres = {
