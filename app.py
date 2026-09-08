@@ -101,6 +101,14 @@ st.markdown("""
     font-weight: bold;
     font-style: italic;
 }
+.login-container {
+    max-width: 400px;
+    margin: 50px auto;
+    padding: 30px;
+    background: #f9fafb;
+    border-radius: 10px;
+    border: 2px solid #e5e7eb;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -139,11 +147,11 @@ except Exception as e:
 # ============================================
 # FILTROS EN SIDEBAR
 # ============================================
-st.sidebar.header("🎛️ Filtros")
+st.sidebar.header("️ Filtros")
 
 zona = st.sidebar.selectbox(
     "Compañerismo:",
-    ["Apizaco 1", "Apizaco 2", "Apizaco 3", "Tlaxco"],
+    ["Apizaco 1 (Hno. Ulises / Galaviz)", "Apizaco 2 (Hno. Jorge Álvarez)", "Apizaco 3 (Hno. Jorge Luis Pérez)", "Tlaxco"],
 )
 
 meses_nombres = {
@@ -208,7 +216,7 @@ dia_semana_inicio = primer_dia.weekday()
 # ============================================
 # CALENDARIO VISUAL TIPO RECUADROS
 # ============================================
-st.header(f"📆 {meses_nombres[mes_sel]} {anio_sel} — {zona}")
+st.header(f" {meses_nombres[mes_sel]} {anio_sel} — {zona}")
 
 dias_semana = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
@@ -252,7 +260,7 @@ for dia in range(1, dias_mes + 1):
             notas = reg.get("notas", "")
             
             html_calendario += '<div class="registro-item">'
-            html_calendario += f'<div class="registro-familia">👨‍👩👧 {familia}</div>'
+            html_calendario += f'<div class="registro-familia">👨‍👩‍👧 {familia}</div>'
             html_calendario += f'<div class="registro-tel">📞 {telefono}</div>'
             if notas:
                 html_calendario += f'<div class="registro-notas">📝 {notas}</div>'
@@ -271,7 +279,7 @@ st.divider()
 # ============================================
 # TABS: Lista y Registro
 # ============================================
-tab1, tab2 = st.tabs([" Lista de registros del mes", "✍️ Apuntarse a una fecha"])
+tab1, tab2 = st.tabs(["📋 Lista de registros del mes", "✍️ Apuntarse a una fecha"])
 
 with tab1:
     st.subheader(f"Registros de {meses_nombres[mes_sel]} {anio_sel}")
@@ -285,90 +293,121 @@ with tab1:
         st.metric("Total de registros este mes", len(df_mostrar))
     
     # ============================================
-    # SECCIÓN DE EDICIÓN Y ELIMINACIÓN
+    # SECCIÓN DE EDICIÓN Y ELIMINACIÓN (PROTEGIDA)
     # ============================================
     st.divider()
-    st.subheader("✏️ Editar o eliminar registros")
+    st.subheader("🔐 Zona de Administración")
     
-    if df_mes.empty:
-        st.info("No hay registros para editar.")
-    else:
-        # Mostrar registros con botones de editar/eliminar
-        df_ordenado = df_mes.sort_values("fecha").reset_index(drop=True)
+    # Verificar si está autenticado
+    if 'admin_authenticated' not in st.session_state:
+        st.session_state.admin_authenticated = False
+    
+    if not st.session_state.admin_authenticated:
+        # Formulario de login
+        st.markdown("**Ingresa la contraseña de administrador para editar/eliminar registros:**")
         
-        for idx, row in df_ordenado.iterrows():
-            col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
+        with st.form("login_form"):
+            password = st.text_input("Contraseña", type="password", help="Contraseña de administrador")
+            submitted = st.form_submit_button("🔓 Ingresar", use_container_width=True)
             
-            with col1:
-                st.write(f"**📅 {row['fecha']}**")
-            with col2:
-                st.write(f"‍👩‍👧 {row['familia']}")
-            with col3:
-                st.write(f"📞 {row['telefono']}")
-            with col4:
-                # Botones de acción
-                if st.button("✏️", key=f"edit_{row['id']}", help="Editar"):
-                    st.session_state[f"editando_{row['id']}"] = True
-                if st.button("🗑️", key=f"del_{row['id']}", help="Eliminar"):
-                    st.session_state[f"eliminando_{row['id']}"] = True
+            if submitted:
+                # Verificar contraseña contra los secrets
+                admin_password = st.secrets.get("admin", {}).get("password", "")
+                if password == admin_password and admin_password != "":
+                    st.session_state.admin_authenticated = True
+                    st.success("✅ Acceso concedido")
+                    st.rerun()
+                else:
+                    st.error("❌ Contraseña incorrecta")
+    else:
+        # Usuario autenticado - mostrar opciones de edición
+        st.success("✅ Modo administrador activo")
+        
+        if st.button("🔒 Cerrar sesión", type="secondary"):
+            st.session_state.admin_authenticated = False
+            st.rerun()
         
         st.divider()
         
-        # Procesar ediciones
-        for idx, row in df_ordenado.iterrows():
-            registro_id = row['id']
+        if df_mes.empty:
+            st.info("No hay registros para editar.")
+        else:
+            # Mostrar registros con botones de editar/eliminar
+            df_ordenado = df_mes.sort_values("fecha").reset_index(drop=True)
             
-            if st.session_state.get(f"editando_{registro_id}"):
-                st.markdown(f"**✏️ Editando registro del {row['fecha']} - {row['familia']}**")
+            for idx, row in df_ordenado.iterrows():
+                col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
                 
-                with st.form(key=f"form_edit_{registro_id}"):
-                    col_e1, col_e2 = st.columns(2)
-                    with col_e1:
-                        e_nombre = st.text_input("Nombre", value=row['familia'], key=f"e_nom_{registro_id}")
-                        e_tel = st.text_input("Teléfono", value=row['telefono'], key=f"e_tel_{registro_id}")
-                    with col_e2:
-                        e_notas = st.text_area("Notas", value=row['notas'] if pd.notna(row['notas']) else "", key=f"e_not_{registro_id}")
+                with col1:
+                    st.write(f"**📅 {row['fecha']}**")
+                with col2:
+                    st.write(f"👨‍👩‍👧 {row['familia']}")
+                with col3:
+                    st.write(f"📞 {row['telefono']}")
+                with col4:
+                    # Botones de acción
+                    if st.button("✏️", key=f"edit_{row['id']}", help="Editar"):
+                        st.session_state[f"editando_{row['id']}"] = True
+                    if st.button("🗑️", key=f"del_{row['id']}", help="Eliminar"):
+                        st.session_state[f"eliminando_{row['id']}"] = True
+            
+            st.divider()
+            
+            # Procesar ediciones
+            for idx, row in df_ordenado.iterrows():
+                registro_id = row['id']
+                
+                if st.session_state.get(f"editando_{registro_id}"):
+                    st.markdown(f"**️ Editando registro del {row['fecha']} - {row['familia']}**")
                     
-                    col_btn1, col_btn2 = st.columns(2)
-                    with col_btn1:
-                        guardar = st.form_submit_button(" Guardar cambios", use_container_width=True)
-                    with col_btn2:
-                        cancelar = st.form_submit_button("❌ Cancelar", use_container_width=True)
-                    
-                    if guardar:
-                        try:
-                            supabase.table("comidas_misioneros").update({
-                                "familia": e_nombre,
-                                "telefono": e_tel,
-                                "notas": e_notas,
-                            }).eq("id", registro_id).execute()
-                            st.success(f"✅ Registro actualizado correctamente")
+                    with st.form(key=f"form_edit_{registro_id}"):
+                        col_e1, col_e2 = st.columns(2)
+                        with col_e1:
+                            e_nombre = st.text_input("Nombre", value=row['familia'], key=f"e_nom_{registro_id}")
+                            e_tel = st.text_input("Teléfono", value=row['telefono'], key=f"e_tel_{registro_id}")
+                        with col_e2:
+                            e_notas = st.text_area("Notas", value=row['notas'] if pd.notna(row['notas']) else "", key=f"e_not_{registro_id}")
+                        
+                        col_btn1, col_btn2 = st.columns(2)
+                        with col_btn1:
+                            guardar = st.form_submit_button(" Guardar cambios", use_container_width=True)
+                        with col_btn2:
+                            cancelar = st.form_submit_button("❌ Cancelar", use_container_width=True)
+                        
+                        if guardar:
+                            try:
+                                supabase.table("comidas_misioneros").update({
+                                    "familia": e_nombre,
+                                    "telefono": e_tel,
+                                    "notas": e_notas,
+                                }).eq("id", registro_id).execute()
+                                st.success(f"✅ Registro actualizado correctamente")
+                                st.session_state[f"editando_{registro_id}"] = False
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error al actualizar: {e}")
+                        
+                        if cancelar:
                             st.session_state[f"editando_{registro_id}"] = False
                             st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Error al actualizar: {e}")
-                    
-                    if cancelar:
-                        st.session_state[f"editando_{registro_id}"] = False
-                        st.rerun()
-            
-            if st.session_state.get(f"eliminando_{registro_id}"):
-                st.markdown(f"**🗑️ ¿Eliminar registro del {row['fecha']} - {row['familia']}?**")
                 
-                col_c1, col_c2 = st.columns(2)
-                with col_c1:
-                    if st.button("✅ Sí, eliminar", key=f"confirm_del_{registro_id}", type="primary"):
-                        try:
-                            supabase.table("comidas_misioneros").delete().eq("id", registro_id).execute()
-                            st.success(f"✅ Registro eliminado correctamente")
+                if st.session_state.get(f"eliminando_{registro_id}"):
+                    st.markdown(f"**🗑️ ¿Eliminar registro del {row['fecha']} - {row['familia']}?**")
+                    
+                    col_c1, col_c2 = st.columns(2)
+                    with col_c1:
+                        if st.button("✅ Sí, eliminar", key=f"confirm_del_{registro_id}", type="primary"):
+                            try:
+                                supabase.table("comidas_misioneros").delete().eq("id", registro_id).execute()
+                                st.success(f"✅ Registro eliminado correctamente")
+                                st.session_state[f"eliminando_{registro_id}"] = False
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error al eliminar: {e}")
+                    with col_c2:
+                        if st.button("❌ No, cancelar", key=f"cancel_del_{registro_id}"):
                             st.session_state[f"eliminando_{registro_id}"] = False
                             st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Error al eliminar: {e}")
-                with col_c2:
-                    if st.button("❌ No, cancelar", key=f"cancel_del_{registro_id}"):
-                        st.session_state[f"eliminando_{registro_id}"] = False
-                        st.rerun()
 
 with tab2:
     st.subheader("Regístrate para darles de comer")
@@ -412,7 +451,7 @@ with tab2:
             f_tel = st.text_input("Número de Teléfono (WhatsApp)")
             f_notas = st.text_area("Notas adicionales (ej. hora acordada, restricciones)", height=80)
             
-            submitted = st.form_submit_button("💾 Guardar Registro", use_container_width=True)
+            submitted = st.form_submit_button(" Guardar Registro", use_container_width=True)
             
             if submitted:
                 if f_nombre and f_tel:
@@ -432,7 +471,7 @@ with tab2:
                         except Exception as e:
                             st.error(f"❌ Error al guardar: {e}")
                     elif f_fecha.weekday() == 0:
-                        st.error("❌ Los lunes son día de descanso. Por favor selecciona otro día.")
+                        st.error(" Los lunes son día de descanso. Por favor selecciona otro día.")
                     else:
                         st.error(f"❌ La fecha {f_fecha.strftime('%d/%m/%Y')} ya está ocupada. Por favor selecciona otra.")
                 else:
