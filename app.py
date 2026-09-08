@@ -3,17 +3,74 @@ import pandas as pd
 import streamlit as st
 from supabase import create_client, Client
 from datetime import timedelta
+import math
 
 # ============================================
 # CONFIGURACIÓN DE PÁGINA
 # ============================================
-st.set_page_config(page_title="Comidas Misioneros - Apizaco y Tlaxco", layout="wide")
+st.set_page_config(
+    page_title="Comidas Misioneros - Apizaco y Tlaxco",
+    layout="wide",
+    initial_sidebar_state="auto"
+)
 
 # ============================================
-# CSS PERSONALIZADO PARA EL CALENDARIO
+# CSS RESPONSIVE Y CALENDARIO
 # ============================================
 st.markdown("""
 <style>
+@media (max-width: 768px) {
+    .calendario-grid {
+        grid-template-columns: repeat(7, 1fr) !important;
+        gap: 2px !important;
+    }
+    .dia-recuadro {
+        min-height: 60px !important;
+        padding: 3px !important;
+    }
+    .dia-numero {
+        font-size: 12px !important;
+    }
+    .registro-item {
+        font-size: 8px !important;
+        padding: 2px !important;
+    }
+    .registro-familia {
+        font-size: 9px !important;
+    }
+    .registro-tel, .registro-notas {
+        font-size: 7px !important;
+    }
+    .disponible-badge, .descanso-badge {
+        font-size: 7px !important;
+    }
+    .dia-header {
+        font-size: 10px !important;
+        padding: 6px 2px !important;
+    }
+    h1 {
+        font-size: 1.3rem !important;
+    }
+    h2 {
+        font-size: 1.1rem !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .calendario-grid {
+        gap: 1px !important;
+    }
+    .dia-recuadro {
+        min-height: 45px !important;
+    }
+    .registro-item {
+        display: none !important;
+    }
+    .disponible-badge, .descanso-badge {
+        font-size: 6px !important;
+    }
+}
+
 .calendario-container {
     margin-top: 20px;
     margin-bottom: 20px;
@@ -101,14 +158,6 @@ st.markdown("""
     font-weight: bold;
     font-style: italic;
 }
-.login-container {
-    max-width: 400px;
-    margin: 50px auto;
-    padding: 30px;
-    background: #f9fafb;
-    border-radius: 10px;
-    border: 2px solid #e5e7eb;
-}
 </style>
 """, unsafe_allow_html=True)
 
@@ -135,7 +184,6 @@ try:
     if df_db.empty:
         df_db = pd.DataFrame(columns=["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
     else:
-        # Asegurar que las columnas existan
         for col in ["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"]:
             if col not in df_db.columns:
                 df_db[col] = ""
@@ -145,13 +193,23 @@ except Exception as e:
     df_db = pd.DataFrame(columns=["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
 
 # ============================================
+# CONFIGURACIÓN DE COMPAÑERISMOS
+# ============================================
+zonas_disponibles = [
+    "Compañerismo 1",
+    "Compañerismo 2 (San José, Tetel, Santa Rosa, Cerrito, Zumpango)",
+    "Compañerismo 3 (Centro, Xaltocan, Santa Úrsula, San Simón)",
+    "Compañerismo 4 (Tlaxco)",
+]
+
+# ============================================
 # FILTROS EN SIDEBAR
 # ============================================
 st.sidebar.header("️ Filtros")
 
 zona = st.sidebar.selectbox(
     "Compañerismo:",
-    ["Apizaco 1", "Apizaco 2", "Apizaco 3", "Tlaxco"],
+    zonas_disponibles,
 )
 
 meses_nombres = {
@@ -169,7 +227,11 @@ with col_m:
         index=hoy.month - 1
     )
 with col_a:
-    anio_sel = st.selectbox("Año", options=[2025, 2026, 2027], index=1 if hoy.year == 2026 else (2 if hoy.year == 2027 else 0))
+    anio_sel = st.selectbox(
+        "Año",
+        options=[2025, 2026, 2027],
+        index=1 if hoy.year == 2026 else (2 if hoy.year == 2027 else 0)
+    )
 
 # ============================================
 # PREPARAR DATOS DEL MES SELECCIONADO
@@ -188,7 +250,6 @@ registros_por_fecha = {}
 if not df_mes.empty:
     for _, row in df_mes.iterrows():
         fecha_str = str(row["fecha"])
-        # Normalizar fecha (puede venir como datetime o string)
         if "T" in fecha_str:
             fecha_str = fecha_str.split("T")[0]
         if fecha_str not in registros_por_fecha:
@@ -209,34 +270,27 @@ if mes_sel == 12:
 else:
     ultimo_dia = datetime.date(anio_sel, mes_sel + 1, 1) - timedelta(days=1)
 dias_mes = (ultimo_dia - primer_dia).days + 1
-
-# Día de la semana del primer día (0=Lunes, 6=Domingo)
 dia_semana_inicio = primer_dia.weekday()
 
 # ============================================
-# CALENDARIO VISUAL TIPO RECUADROS
+# CALENDARIO VISUAL
 # ============================================
-st.header(f" {meses_nombres[mes_sel]} {anio_sel} — {zona}")
+st.header(f"📆 {meses_nombres[mes_sel]} {anio_sel} — {zona}")
 
-dias_semana = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+dias_semana = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 
-# Construir HTML del calendario
 html_calendario = '<div class="calendario-container"><div class="calendario-grid">'
 
-# Headers de días de la semana
 for dia in dias_semana:
     html_calendario += f'<div class="dia-header">{dia}</div>'
 
-# Celdas vacías antes del primer día
 for i in range(dia_semana_inicio):
     html_calendario += '<div class="dia-recuadro dia-vacio"></div>'
 
-# Días del mes
 for dia in range(1, dias_mes + 1):
     fecha_actual = datetime.date(anio_sel, mes_sel, dia)
     fecha_str = str(fecha_actual)
-    es_lunes = (fecha_actual.weekday() == 0)  # 0 = Lunes
-    
+    es_lunes = (fecha_actual.weekday() == 0)
     es_hoy = (fecha_actual == hoy)
     tiene_registro = fecha_str in registros_por_fecha
     
@@ -252,7 +306,7 @@ for dia in range(1, dias_mes + 1):
     html_calendario += f'<div class="dia-numero">{dia}</div>'
     
     if es_lunes:
-        html_calendario += '<div class="descanso-badge">😴 Día de descanso</div>'
+        html_calendario += '<div class="descanso-badge">😴 Descanso</div>'
     elif tiene_registro:
         for reg in registros_por_fecha[fecha_str]:
             familia = reg["familia"]
@@ -260,26 +314,25 @@ for dia in range(1, dias_mes + 1):
             notas = reg.get("notas", "")
             
             html_calendario += '<div class="registro-item">'
-            html_calendario += f'<div class="registro-familia">👨‍👩‍👧 {familia}</div>'
-            html_calendario += f'<div class="registro-tel">📞 {telefono}</div>'
+            html_calendario += f'<div class="registro-familia">‍👩‍👧 {familia}</div>'
+            html_calendario += f'<div class="registro-tel"> {telefono}</div>'
             if notas:
                 html_calendario += f'<div class="registro-notas">📝 {notas}</div>'
             html_calendario += '</div>'
     else:
-        html_calendario += '<div class="disponible-badge">✅ Disponible</div>'
+        html_calendario += '<div class="disponible-badge">✅ Libre</div>'
     
     html_calendario += '</div>'
 
 html_calendario += '</div></div>'
-
 st.markdown(html_calendario, unsafe_allow_html=True)
 
 st.divider()
 
 # ============================================
-# TABS: Lista y Registro
+# TABS
 # ============================================
-tab1, tab2 = st.tabs(["📋 Lista de registros del mes", "✍️ Apuntarse a una fecha"])
+tab1, tab2 = st.tabs(["📋 Lista de registros", "✍️ Apuntarse a una fecha"])
 
 with tab1:
     st.subheader(f"Registros de {meses_nombres[mes_sel]} {anio_sel}")
@@ -289,29 +342,25 @@ with tab1:
     else:
         df_mostrar = df_mes.sort_values("fecha")[["fecha", "familia", "telefono", "notas"]].copy()
         st.dataframe(df_mostrar, use_container_width=True)
-        
         st.metric("Total de registros este mes", len(df_mostrar))
     
     # ============================================
-    # SECCIÓN DE EDICIÓN Y ELIMINACIÓN (PROTEGIDA)
+    # ZONA DE ADMINISTRACIÓN (PROTEGIDA)
     # ============================================
     st.divider()
     st.subheader("🔐 Zona de Administración")
     
-    # Verificar si está autenticado
     if 'admin_authenticated' not in st.session_state:
         st.session_state.admin_authenticated = False
     
     if not st.session_state.admin_authenticated:
-        # Formulario de login
-        st.markdown("**Ingresa la contraseña de administrador para editar/eliminar registros:**")
+        st.markdown("**Ingresa la contraseña de administrador:**")
         
         with st.form("login_form"):
-            password = st.text_input("Contraseña", type="password", help="Contraseña de administrador")
+            password = st.text_input("Contraseña", type="password")
             submitted = st.form_submit_button("🔓 Ingresar", use_container_width=True)
             
             if submitted:
-                # Verificar contraseña contra los secrets
                 admin_password = st.secrets.get("admin", {}).get("password", "")
                 if password == admin_password and admin_password != "":
                     st.session_state.admin_authenticated = True
@@ -320,7 +369,6 @@ with tab1:
                 else:
                     st.error("❌ Contraseña incorrecta")
     else:
-        # Usuario autenticado - mostrar opciones de edición
         st.success("✅ Modo administrador activo")
         
         if st.button("🔒 Cerrar sesión", type="secondary"):
@@ -329,10 +377,52 @@ with tab1:
         
         st.divider()
         
+        # BACKUP
+        st.markdown("### 💾 Backup de Datos")
+        col_b1, col_b2 = st.columns(2)
+        
+        with col_b1:
+            if st.button("📥 Exportar TODO a CSV", use_container_width=True):
+                try:
+                    response = supabase.table("comidas_misioneros").select("*").order("fecha", desc=False).execute()
+                    df_completo = pd.DataFrame(response.data)
+                    if not df_completo.empty:
+                        csv_data = df_completo.to_csv(index=False, encoding='utf-8-sig')
+                        st.download_button(
+                            label="⬇️ Descargar CSV completo",
+                            data=csv_data,
+                            file_name=f"backup_comidas_{datetime.date.today().strftime('%Y%m%d')}.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+                        st.success(f"✅ {len(df_completo)} registros listos")
+                except Exception as e:
+                    st.error(f" Error: {e}")
+        
+        with col_b2:
+            if st.button(f"📥 Exportar {meses_nombres[mes_sel]} {anio_sel}", use_container_width=True):
+                try:
+                    if not df_mes.empty:
+                        csv_data = df_mes.to_csv(index=False, encoding='utf-8-sig')
+                        st.download_button(
+                            label=f"⬇️ Descargar {periodo_str}",
+                            data=csv_data,
+                            file_name=f"backup_{periodo_str}.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+                        st.success(f"✅ {len(df_mes)} registros del mes listos")
+                    else:
+                        st.warning("No hay datos este mes")
+                except Exception as e:
+                    st.error(f"❌ Error: {e}")
+        
+        st.divider()
+        
+        # EDITAR/ELIMINAR
         if df_mes.empty:
             st.info("No hay registros para editar.")
         else:
-            # Mostrar registros con botones de editar/eliminar
             df_ordenado = df_mes.sort_values("fecha").reset_index(drop=True)
             
             for idx, row in df_ordenado.iterrows():
@@ -341,11 +431,10 @@ with tab1:
                 with col1:
                     st.write(f"**📅 {row['fecha']}**")
                 with col2:
-                    st.write(f"👨‍👩‍👧 {row['familia']}")
+                    st.write(f"👨‍👩👧 {row['familia']}")
                 with col3:
-                    st.write(f"📞 {row['telefono']}")
+                    st.write(f" {row['telefono']}")
                 with col4:
-                    # Botones de acción
                     if st.button("✏️", key=f"edit_{row['id']}", help="Editar"):
                         st.session_state[f"editando_{row['id']}"] = True
                     if st.button("🗑️", key=f"del_{row['id']}", help="Eliminar"):
@@ -353,12 +442,11 @@ with tab1:
             
             st.divider()
             
-            # Procesar ediciones
             for idx, row in df_ordenado.iterrows():
                 registro_id = row['id']
                 
                 if st.session_state.get(f"editando_{registro_id}"):
-                    st.markdown(f"**️ Editando registro del {row['fecha']} - {row['familia']}**")
+                    st.markdown(f"**✏️ Editando: {row['fecha']} - {row['familia']}**")
                     
                     with st.form(key=f"form_edit_{registro_id}"):
                         col_e1, col_e2 = st.columns(2)
@@ -370,7 +458,7 @@ with tab1:
                         
                         col_btn1, col_btn2 = st.columns(2)
                         with col_btn1:
-                            guardar = st.form_submit_button(" Guardar cambios", use_container_width=True)
+                            guardar = st.form_submit_button("💾 Guardar", use_container_width=True)
                         with col_btn2:
                             cancelar = st.form_submit_button("❌ Cancelar", use_container_width=True)
                         
@@ -381,29 +469,29 @@ with tab1:
                                     "telefono": e_tel,
                                     "notas": e_notas,
                                 }).eq("id", registro_id).execute()
-                                st.success(f"✅ Registro actualizado correctamente")
+                                st.success("✅ Registro actualizado")
                                 st.session_state[f"editando_{registro_id}"] = False
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"❌ Error al actualizar: {e}")
+                                st.error(f"❌ Error: {e}")
                         
                         if cancelar:
                             st.session_state[f"editando_{registro_id}"] = False
                             st.rerun()
                 
                 if st.session_state.get(f"eliminando_{registro_id}"):
-                    st.markdown(f"**🗑️ ¿Eliminar registro del {row['fecha']} - {row['familia']}?**")
+                    st.markdown(f"**🗑️ ¿Eliminar {row['fecha']} - {row['familia']}?**")
                     
                     col_c1, col_c2 = st.columns(2)
                     with col_c1:
                         if st.button("✅ Sí, eliminar", key=f"confirm_del_{registro_id}", type="primary"):
                             try:
                                 supabase.table("comidas_misioneros").delete().eq("id", registro_id).execute()
-                                st.success(f"✅ Registro eliminado correctamente")
+                                st.success("✅ Registro eliminado")
                                 st.session_state[f"eliminando_{registro_id}"] = False
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"❌ Error al eliminar: {e}")
+                                st.error(f"❌ Error: {e}")
                     with col_c2:
                         if st.button("❌ No, cancelar", key=f"cancel_del_{registro_id}"):
                             st.session_state[f"eliminando_{registro_id}"] = False
@@ -412,46 +500,40 @@ with tab1:
 with tab2:
     st.subheader("Regístrate para darles de comer")
     
-    # Calcular fechas disponibles (excluyendo lunes)
     fechas_ocupadas = set(registros_por_fecha.keys())
     fechas_disponibles = []
     for dia in range(1, dias_mes + 1):
         fecha = datetime.date(anio_sel, mes_sel, dia)
-        # Excluir lunes (weekday() == 0) y fechas ocupadas
         if fecha.weekday() != 0 and str(fecha) not in fechas_ocupadas:
             fechas_disponibles.append(fecha)
     
-    # Mostrar leyenda
-    st.info("ℹ️ **Nota:** Los lunes son día de descanso para los misioneros y no están disponibles para registro.")
+    st.info("️ **Nota:** Los lunes son día de descanso y no están disponibles.")
     
     if not fechas_disponibles:
         st.warning("⚠️ No hay fechas disponibles este mes.")
     else:
         with st.form("form_registro", clear_on_submit=True):
-            st.markdown("**Selecciona una fecha en el calendario:**")
+            st.markdown("**Selecciona una fecha:**")
             
-            # Calendario visual para seleccionar fecha
             f_fecha = st.date_input(
                 "Fecha de la comida",
                 min_value=datetime.date(anio_sel, mes_sel, 1),
                 max_value=datetime.date(anio_sel, mes_sel, dias_mes),
                 value=fechas_disponibles[0] if fechas_disponibles else datetime.date(anio_sel, mes_sel, 1),
-                help="Haz clic en el calendario para seleccionar una fecha disponible (los lunes no aparecen)"
             )
             
-            # Validar si la fecha está disponible y no es lunes
             if f_fecha.weekday() == 0:
-                st.error(f"❌ {f_fecha.strftime('%d/%m/%Y')} es lunes (día de descanso). Selecciona otra fecha.")
+                st.error(f"❌ {f_fecha.strftime('%d/%m/%Y')} es lunes (día de descanso).")
             elif f_fecha in fechas_disponibles:
                 st.success(f"✅ {f_fecha.strftime('%d/%m/%Y')} está disponible")
             else:
-                st.error(f"❌ {f_fecha.strftime('%d/%m/%Y')} ya está ocupada. Selecciona otra fecha.")
+                st.error(f"❌ {f_fecha.strftime('%d/%m/%Y')} ya está ocupada.")
             
             f_nombre = st.text_input("Nombre de la Familia / Persona")
             f_tel = st.text_input("Número de Teléfono (WhatsApp)")
-            f_notas = st.text_area("Notas adicionales (ej. hora acordada, restricciones)", height=80)
+            f_notas = st.text_area("Notas adicionales", height=80)
             
-            submitted = st.form_submit_button(" Guardar Registro", use_container_width=True)
+            submitted = st.form_submit_button("💾 Guardar Registro", use_container_width=True)
             
             if submitted:
                 if f_nombre and f_tel:
@@ -469,10 +551,10 @@ with tab2:
                             st.success(f"✅ ¡Gracias {f_nombre}! Registro guardado para el {f_fecha.strftime('%d/%m/%Y')}.")
                             st.rerun()
                         except Exception as e:
-                            st.error(f"❌ Error al guardar: {e}")
+                            st.error(f" Error: {e}")
                     elif f_fecha.weekday() == 0:
-                        st.error(" Los lunes son día de descanso. Por favor selecciona otro día.")
+                        st.error(" Los lunes son día de descanso.")
                     else:
-                        st.error(f"❌ La fecha {f_fecha.strftime('%d/%m/%Y')} ya está ocupada. Por favor selecciona otra.")
+                        st.error(f"❌ La fecha ya está ocupada.")
                 else:
-                    st.error("❌ Por favor completa al menos el nombre y teléfono.")
+                    st.error("❌ Completa nombre y teléfono.")
