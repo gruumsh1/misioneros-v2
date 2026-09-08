@@ -161,8 +161,6 @@ COLONIAS = {
     "Compañerismo 3": "Centro, Xaltocan, Santa Úrsula, San Simón",
     "Compañerismo 4 (Tlaxco)": "Tlaxco y comunidades",
 }
-MESES_ABREV = {1:"Ene", 2:"Feb", 3:"Mar", 4:"Abr", 5:"May", 6:"Jun",
-               7:"Jul", 8:"Ago", 9:"Sep", 10:"Oct", 11:"Nov", 12:"Dic"}
 meses_nombres = {
     1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
     7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre",
@@ -172,7 +170,7 @@ DIAS_SEMANA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", 
 hoy = datetime.date.today()
 
 # ============================================
-# TARJETA 1: SELECCIÓN (rejilla ordenada, sin desplegables)
+# TARJETA 1: SELECCIÓN (sin desplegables)
 # ============================================
 with st.container(border=True):
     st.markdown("##### 1. Elija su compañerismo")
@@ -194,37 +192,48 @@ with st.container(border=True):
     for linea in info_lineas:
         st.markdown(f'<p class="muted">{html.escape(linea)}</p>', unsafe_allow_html=True)
 
-    st.markdown("##### 2. Elija el mes")
-    if "mes_sel" not in st.session_state:
-        st.session_state.mes_sel = hoy.month
+    # ---- Navegación de mes tipo calendario ----
+    st.markdown("##### 2. Mes que está viendo")
+    if "view_ym" not in st.session_state:
+        st.session_state.view_ym = (hoy.year, hoy.month)
 
-    cols = st.columns(4)
-    for idx, m in enumerate(range(1, 13)):
-        with cols[idx % 4]:
-            seleccionado = (st.session_state.mes_sel == m)
-            if st.button(
-                MESES_ABREV[m],
-                key=f"mes_btn_{m}",
-                use_container_width=True,
-                type="primary" if seleccionado else "secondary",
-                help=meses_nombres[m],
-            ):
-                st.session_state.mes_sel = m
-                st.rerun()
-    mes_sel = st.session_state.mes_sel
+    def shift_month(ym, delta):
+        y, m = ym
+        m += delta
+        if m < 1:
+            y, m = y - 1, 12
+        elif m > 12:
+            y, m = y + 1, 1
+        nuevo = (y, m)
+        if nuevo < (2025, 1):
+            nuevo = (2025, 1)
+        if nuevo > (2027, 12):
+            nuevo = (2027, 12)
+        return nuevo
 
-    anio_sel = st.segmented_control(
-        "Año",
-        options=[2025, 2026, 2027],
-        default=hoy.year if hoy.year in [2025, 2026, 2027] else 2026,
-        key="anio_seg",
-        label_visibility="collapsed",
-    )
+    c1, c2, c3 = st.columns([1, 2, 1])
+    with c1:
+        if st.button("Anterior", use_container_width=True, key="mes_prev"):
+            st.session_state.view_ym = shift_month(st.session_state.view_ym, -1)
+            st.rerun()
+    with c2:
+        y_view, m_view = st.session_state.view_ym
+        st.markdown(
+            f"<p style='text-align:center;font-weight:800;font-size:1.15rem;margin:0;padding:.55rem 0'>{meses_nombres[m_view]} {y_view}</p>",
+            unsafe_allow_html=True,
+        )
+    with c3:
+        if st.button("Siguiente", use_container_width=True, key="mes_next"):
+            st.session_state.view_ym = shift_month(st.session_state.view_ym, 1)
+            st.rerun()
 
-if mes_sel is None:
-    mes_sel = hoy.month
-if anio_sel is None:
-    anio_sel = hoy.year if hoy.year in [2025, 2026, 2027] else 2026
+    if st.session_state.view_ym != (hoy.year, hoy.month):
+        if st.button("Ir al mes actual", use_container_width=True, key="go_today"):
+            st.session_state.view_ym = (hoy.year, hoy.month)
+            st.rerun()
+
+    mes_sel = st.session_state.view_ym[1]
+    anio_sel = st.session_state.view_ym[0]
 
 # ============================================
 # PREPARAR DATOS DEL MES
@@ -322,18 +331,22 @@ with st.container(border=True):
         for d in range(1, dias_mes + 1)
         if datetime.date(anio_sel, mes_sel, d).weekday() != 0
         and str(datetime.date(anio_sel, mes_sel, d)) not in fechas_ocupadas
+        and datetime.date(anio_sel, mes_sel, d) >= hoy
     ]
 
-    if not fechas_disponibles:
+    if ultimo_dia < hoy:
+        st.info("Está viendo un mes pasado. Solo consulta; los registros nuevos se hacen en el mes actual o en meses futuros.")
+    elif not fechas_disponibles:
         st.warning("No quedan días disponibles este mes. Revise el siguiente mes.")
     else:
         with st.form("form_registro", clear_on_submit=True):
             st.markdown("**Día disponible** (toque el campo para abrir el calendario)")
+            min_fechar = max(datetime.date(anio_sel, mes_sel, 1), hoy)
             f_fecha = st.date_input(
                 "Día",
-                min_value=datetime.date(anio_sel, mes_sel, 1),
+                min_value=min_fechar,
                 max_value=datetime.date(anio_sel, mes_sel, dias_mes),
-                value=fechas_disponibles[0],
+                value=fechas_disponibles[0] if fechas_disponibles else min_fechar,
                 label_visibility="collapsed",
             )
             f_nombre = st.text_input("Nombre de la familia o persona")
@@ -345,6 +358,8 @@ with st.container(border=True):
             if enviado:
                 if not f_nombre.strip() or not f_tel.strip():
                     st.error("Escriba al menos su nombre y su teléfono.")
+                elif f_fecha < hoy:
+                    st.error("No puede anotarse en una fecha pasada.")
                 elif f_fecha.weekday() == 0:
                     st.error("Los lunes son día de descanso. Elija otro día.")
                 elif str(f_fecha) in fechas_ocupadas:
