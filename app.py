@@ -69,7 +69,7 @@ except Exception as e:
     st.stop()
 
 # ============================================
-# LEER DATOS DE SUPABASE
+# LEER DATOS DE REGISTROS
 # ============================================
 try:
     response = supabase.table("comidas_misioneros").select("*").order("fecha", desc=False).execute()
@@ -86,28 +86,38 @@ except Exception as e:
     df_db = pd.DataFrame(columns=["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
 
 # ============================================
-# MAPEO DE NOMBRES (basado en los nombres REALES de la BD)
+# LEER NOMBRES DE MISIONEROS
 # ============================================
-# Los nombres en la BD son: "Apizaco 1", "Apizaco 2", "Apizaco 3"
-# Los mostramos como nombres largos pero los comparamos con los cortos
-mapeo_a_corto = {
-    "Compañerismo 1": "Apizaco 1",
-    "Compañerismo 1 (San José, Tetel, Santa Rosa, Cerrito, Zumpango)": "Apizaco 1",
-    "Compañerismo 2": "Apizaco 2",
-    "Compañerismo 2 (San José, Tetel, Santa Rosa, Cerrito, Zumpango)": "Apizaco 2",
-    "Compañerismo 3": "Apizaco 3",
-    "Compañerismo 3 (Centro, Xaltocan, Santa Úrsula, San Simón)": "Apizaco 3",
-    "Compañerismo 4": "Tlaxco",
-    "Compañerismo 4 (Tlaxco)": "Tlaxco",
-    "Apizaco 1": "Apizaco 1",
-    "Apizaco 2": "Apizaco 2",
-    "Apizaco 3": "Apizaco 3",
-    "Tlaxco": "Tlaxco",
-}
+try:
+    response_mis = supabase.table("misioneros_info").select("*").execute()
+    df_mis = pd.DataFrame(response_mis.data)
+    if df_mis.empty:
+        df_mis = pd.DataFrame(columns=["companerismo", "misionero_1", "misionero_2"])
+except Exception:
+    df_mis = pd.DataFrame(columns=["companerismo", "misionero_1", "misionero_2"])
+
+def obtener_misioneros(zona_corta):
+    """Devuelve los nombres de los misioneros de una zona"""
+    if df_mis.empty or "companerismo" not in df_mis.columns:
+        return ""
+    fila = df_mis[df_mis["companerismo"] == zona_corta]
+    if fila.empty:
+        return ""
+    m1 = str(fila.iloc[0].get("misionero_1", "") or "").strip()
+    m2 = str(fila.iloc[0].get("misionero_2", "") or "").strip()
+    partes = [p for p in [m1, m2] if p]
+    return " / ".join(partes)
 
 # ============================================
-# CONFIGURACIÓN DE COMPAÑERISMOS (nombres para mostrar)
+# MAPEO DE NOMBRES (nombres cortos de la BD)
 # ============================================
+mapeo_a_corto = {
+    "Compañerismo 1": "Apizaco 1",
+    "Compañerismo 2 (San José, Tetel, Santa Rosa, Cerrito, Zumpango)": "Apizaco 2",
+    "Compañerismo 3 (Centro, Xaltocan, Santa Úrsula, San Simón)": "Apizaco 3",
+    "Compañerismo 4 (Tlaxco)": "Tlaxco",
+}
+
 zonas_disponibles = [
     "Compañerismo 1",
     "Compañerismo 2 (San José, Tetel, Santa Rosa, Cerrito, Zumpango)",
@@ -115,15 +125,22 @@ zonas_disponibles = [
     "Compañerismo 4 (Tlaxco)",
 ]
 
+zonas_cortas = ["Apizaco 1", "Apizaco 2", "Apizaco 3", "Tlaxco"]
+
 # ============================================
 # FILTROS EN SIDEBAR
 # ============================================
 st.sidebar.header("🎛️ Filtros")
 
 zona = st.sidebar.selectbox("Compañerismo:", zonas_disponibles)
-
-# Convertir el nombre largo al nombre corto de la BD
 zona_corta = mapeo_a_corto.get(zona, zona)
+
+# Mostrar misioneros actuales de la zona seleccionada
+misioneros_actuales = obtener_misioneros(zona_corta)
+if misioneros_actuales:
+    st.sidebar.info(f"👥 **Misioneros actuales:**\n{misioneros_actuales}")
+else:
+    st.sidebar.caption("👥 Misioneros: sin asignar")
 
 meses_nombres = {
     1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
@@ -147,22 +164,17 @@ with col_a:
     )
 
 # ============================================
-# PREPARAR DATOS DEL MES SELECCIONADO
+# PREPARAR DATOS DEL MES
 # ============================================
 periodo_str = f"{anio_sel}-{str(mes_sel).zfill(2)}"
 
 if not df_db.empty:
-    # Comparar usando el nombre CORTO que está en la BD
     df_mes = df_db[df_db["companerismo"] == zona_corta].copy()
     if "mes_ano" in df_mes.columns:
         df_mes = df_mes[df_mes["mes_ano"] == periodo_str]
 else:
     df_mes = pd.DataFrame(columns=["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
 
-# Mostrar cuántos registros hay para este compañerismo
-st.sidebar.info(f"📊 {len(df_mes)} registros en {zona}")
-
-# Crear diccionario de registros por fecha
 registros_por_fecha = {}
 if not df_mes.empty:
     for _, row in df_mes.iterrows():
@@ -193,6 +205,8 @@ dia_semana_inicio = primer_dia.weekday()
 # CALENDARIO VISUAL
 # ============================================
 st.header(f"📆 {meses_nombres[mes_sel]} {anio_sel} — {zona}")
+if misioneros_actuales:
+    st.caption(f"👥 Misioneros asignados: **{misioneros_actuales}**")
 
 dias_semana = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 
@@ -231,7 +245,7 @@ for dia in range(1, dias_mes + 1):
             notas = reg.get("notas", "")
             
             html_calendario += '<div class="registro-item">'
-            html_calendario += f'<div class="registro-familia">👨‍👩‍ {familia}</div>'
+            html_calendario += f'<div class="registro-familia">👨‍‍👧 {familia}</div>'
             html_calendario += f'<div class="registro-tel">📞 {telefono}</div>'
             if notas:
                 html_calendario += f'<div class="registro-notas">📝 {notas}</div>'
@@ -249,7 +263,7 @@ st.divider()
 # ============================================
 # TABS
 # ============================================
-tab1, tab2 = st.tabs(["📋 Lista de registros", "️ Apuntarse a una fecha"])
+tab1, tab2 = st.tabs(["📋 Lista de registros", "✍️ Apuntarse a una fecha"])
 
 with tab1:
     st.subheader(f"Registros de {meses_nombres[mes_sel]} {anio_sel}")
@@ -265,7 +279,7 @@ with tab1:
     # ZONA DE ADMINISTRACIÓN (PROTEGIDA)
     # ============================================
     st.divider()
-    st.subheader(" Zona de Administración")
+    st.subheader("🔐 Zona de Administración")
     
     if 'admin_authenticated' not in st.session_state:
         st.session_state.admin_authenticated = False
@@ -292,9 +306,52 @@ with tab1:
             st.session_state.admin_authenticated = False
             st.rerun()
         
+        # ============================================
+        # SECCIÓN: GESTIONAR NOMBRES DE MISIONEROS
+        # ============================================
+        st.divider()
+        st.markdown("### 👥 Gestionar Nombres de Misioneros")
+        st.caption("Actualiza los nombres cuando lleguen misioneros nuevos. Los cambios se verán inmediatamente en la app.")
+        
+        for zona_iter in zonas_cortas:
+            nombres_actuales = obtener_misioneros(zona_iter)
+            etiqueta = f"✏️ {zona_iter}"
+            if nombres_actuales:
+                etiqueta += f" — {nombres_actuales}"
+            
+            with st.expander(etiqueta):
+                fila = df_mis[df_mis["companerismo"] == zona_iter] if not df_mis.empty else pd.DataFrame()
+                m1_actual = str(fila.iloc[0].get("misionero_1", "") or "") if not fila.empty else ""
+                m2_actual = str(fila.iloc[0].get("misionero_2", "") or "") if not fila.empty else ""
+                
+                with st.form(key=f"form_mis_{zona_iter}"):
+                    nuevo_m1 = st.text_input("Misionero 1", value=m1_actual, key=f"m1_{zona_iter}", placeholder="Ej: Hno. Juan Pérez")
+                    nuevo_m2 = st.text_input("Misionero 2 (compañero)", value=m2_actual, key=f"m2_{zona_iter}", placeholder="Ej: Hno. Luis García")
+                    
+                    if st.form_submit_button("💾 Guardar nombres", use_container_width=True):
+                        try:
+                            if fila.empty:
+                                supabase.table("misioneros_info").insert({
+                                    "companerismo": zona_iter,
+                                    "misionero_1": nuevo_m1,
+                                    "misionero_2": nuevo_m2,
+                                }).execute()
+                            else:
+                                supabase.table("misioneros_info").update({
+                                    "misionero_1": nuevo_m1,
+                                    "misionero_2": nuevo_m2,
+                                    "actualizado_el": datetime.datetime.now().isoformat(),
+                                }).eq("companerismo", zona_iter).execute()
+                            st.success(f"✅ Nombres de {zona_iter} actualizados")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Error al guardar: {e}")
+        
         st.divider()
         
-        # BACKUP
+        # ============================================
+        # SECCIÓN: BACKUP
+        # ============================================
         st.markdown("### 💾 Backup de Datos")
         col_b1, col_b2 = st.columns(2)
         
@@ -336,7 +393,11 @@ with tab1:
         
         st.divider()
         
-        # EDITAR/ELIMINAR
+        # ============================================
+        # SECCIÓN: EDITAR/ELIMINAR REGISTROS
+        # ============================================
+        st.markdown("### ✏️ Editar / Eliminar Registros")
+        
         if df_mes.empty:
             st.info("No hay registros para editar.")
         else:
@@ -346,7 +407,7 @@ with tab1:
                 col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
                 
                 with col1:
-                    st.write(f"** {row['fecha']}**")
+                    st.write(f"**📅 {row['fecha']}**")
                 with col2:
                     st.write(f"👨‍👩‍👧 {row['familia']}")
                 with col3:
@@ -390,14 +451,14 @@ with tab1:
                                 st.session_state[f"editando_{registro_id}"] = False
                                 st.rerun()
                             except Exception as e:
-                                st.error(f" Error: {e}")
+                                st.error(f"❌ Error: {e}")
                         
                         if cancelar:
                             st.session_state[f"editando_{registro_id}"] = False
                             st.rerun()
                 
                 if st.session_state.get(f"eliminando_{registro_id}"):
-                    st.markdown(f"**️ ¿Eliminar {row['fecha']} - {row['familia']}?**")
+                    st.markdown(f"**🗑️ ¿Eliminar {row['fecha']} - {row['familia']}?**")
                     
                     col_c1, col_c2 = st.columns(2)
                     with col_c1:
@@ -456,7 +517,7 @@ with tab2:
                 if f_nombre and f_tel:
                     if f_fecha.weekday() != 0 and f_fecha in fechas_disponibles:
                         nuevo_registro = {
-                            "companerismo": zona_corta,  # Guardar con el nombre corto de la BD
+                            "companerismo": zona_corta,
                             "mes_ano": periodo_str,
                             "fecha": str(f_fecha),
                             "familia": f_nombre,
@@ -468,9 +529,9 @@ with tab2:
                             st.success(f"✅ ¡Gracias {f_nombre}! Registro guardado para el {f_fecha.strftime('%d/%m/%Y')}.")
                             st.rerun()
                         except Exception as e:
-                            st.error(f" Error: {e}")
+                            st.error(f"❌ Error: {e}")
                     elif f_fecha.weekday() == 0:
-                        st.error(" Los lunes son día de descanso.")
+                        st.error("❌ Los lunes son día de descanso.")
                     else:
                         st.error(f"❌ La fecha ya está ocupada.")
                 else:
