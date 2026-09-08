@@ -19,129 +19,38 @@ st.set_page_config(
 st.markdown("""
 <style>
 @media (max-width: 768px) {
-    .calendario-grid {
-        grid-template-columns: repeat(7, 1fr) !important;
-        gap: 2px !important;
-    }
-    .dia-recuadro {
-        min-height: 60px !important;
-        padding: 3px !important;
-    }
-    .dia-numero {
-        font-size: 12px !important;
-    }
-    .registro-item {
-        font-size: 8px !important;
-        padding: 2px !important;
-    }
-    .registro-familia {
-        font-size: 9px !important;
-    }
-    .registro-tel, .registro-notas {
-        font-size: 7px !important;
-    }
-    .disponible-badge, .descanso-badge {
-        font-size: 7px !important;
-    }
-    .dia-header {
-        font-size: 10px !important;
-        padding: 6px 2px !important;
-    }
+    .calendario-grid { grid-template-columns: repeat(7, 1fr) !important; gap: 2px !important; }
+    .dia-recuadro { min-height: 60px !important; padding: 3px !important; }
+    .dia-numero { font-size: 12px !important; }
+    .registro-item { font-size: 8px !important; padding: 2px !important; }
+    .registro-familia { font-size: 9px !important; }
+    .registro-tel, .registro-notas { font-size: 7px !important; }
+    .disponible-badge, .descanso-badge { font-size: 7px !important; }
+    .dia-header { font-size: 10px !important; padding: 6px 2px !important; }
     h1 { font-size: 1.3rem !important; }
     h2 { font-size: 1.1rem !important; }
 }
-
 @media (max-width: 480px) {
     .calendario-grid { gap: 1px !important; }
     .dia-recuadro { min-height: 45px !important; }
     .registro-item { display: none !important; }
     .disponible-badge, .descanso-badge { font-size: 6px !important; }
 }
-
 .calendario-container { margin-top: 20px; margin-bottom: 20px; }
-.calendario-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 6px;
-    margin-top: 10px;
-}
-.dia-header {
-    background: #1f2937;
-    color: white;
-    padding: 12px 5px;
-    text-align: center;
-    font-weight: bold;
-    border-radius: 6px;
-    font-size: 14px;
-}
-.dia-recuadro {
-    border: 2px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 8px;
-    min-height: 110px;
-    background: #f9fafb;
-    position: relative;
-}
-.dia-recuadro.ocupado {
-    background: #fef3c7;
-    border-color: #f59e0b;
-}
-.dia-recuadro.hoy {
-    border-color: #3b82f6;
-    border-width: 3px;
-    background: #dbeafe;
-}
-.dia-recuadro.lunes {
-    background: #f3f4f6;
-    border-color: #9ca3af;
-    border-style: dashed;
-}
-.dia-recuadro.dia-vacio {
-    background: transparent;
-    border: none;
-    min-height: 0;
-}
-.dia-numero {
-    font-size: 18px;
-    font-weight: bold;
-    color: #1f2937;
-    margin-bottom: 5px;
-}
-.registro-item {
-    background: white;
-    border: 1px solid #d1d5db;
-    border-radius: 4px;
-    padding: 4px 6px;
-    margin-bottom: 4px;
-    font-size: 11px;
-}
-.registro-familia {
-    font-weight: bold;
-    color: #1f2937;
-    font-size: 12px;
-}
-.registro-tel {
-    color: #6b7280;
-    font-size: 10px;
-}
-.registro-notas {
-    color: #9ca3af;
-    font-size: 10px;
-    font-style: italic;
-}
-.disponible-badge {
-    color: #10b981;
-    font-size: 10px;
-    margin-top: 4px;
-    font-weight: bold;
-}
-.descanso-badge {
-    color: #6b7280;
-    font-size: 10px;
-    margin-top: 4px;
-    font-weight: bold;
-    font-style: italic;
-}
+.calendario-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 10px; }
+.dia-header { background: #1f2937; color: white; padding: 12px 5px; text-align: center; font-weight: bold; border-radius: 6px; font-size: 14px; }
+.dia-recuadro { border: 2px solid #e5e7eb; border-radius: 8px; padding: 8px; min-height: 110px; background: #f9fafb; position: relative; }
+.dia-recuadro.ocupado { background: #fef3c7; border-color: #f59e0b; }
+.dia-recuadro.hoy { border-color: #3b82f6; border-width: 3px; background: #dbeafe; }
+.dia-recuadro.lunes { background: #f3f4f6; border-color: #9ca3af; border-style: dashed; }
+.dia-recuadro.dia-vacio { background: transparent; border: none; min-height: 0; }
+.dia-numero { font-size: 18px; font-weight: bold; color: #1f2937; margin-bottom: 5px; }
+.registro-item { background: white; border: 1px solid #d1d5db; border-radius: 4px; padding: 4px 6px; margin-bottom: 4px; font-size: 11px; }
+.registro-familia { font-weight: bold; color: #1f2937; font-size: 12px; }
+.registro-tel { color: #6b7280; font-size: 10px; }
+.registro-notas { color: #9ca3af; font-size: 10px; font-style: italic; }
+.disponible-badge { color: #10b981; font-size: 10px; margin-top: 4px; font-weight: bold; }
+.descanso-badge { color: #6b7280; font-size: 10px; margin-top: 4px; font-weight: bold; font-style: italic; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -177,29 +86,27 @@ except Exception as e:
     df_db = pd.DataFrame(columns=["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
 
 # ============================================
-# MAPEO DE NOMBRES ANTIGUOS A NUEVOS
+# MAPEO DE NOMBRES (basado en los nombres REALES de la BD)
 # ============================================
-# Esto convierte los nombres viejos en los nuevos automáticamente
-mapeo_nombres = {
-    # Nombres antiguos → Nombres nuevos
-    "Apizaco 1 (Hno. Ulises / Galaviz)": "Compañerismo 1",
-    "Apizaco 2 (Hno. Jorge Álvarez)": "Compañerismo 2 (San José, Tetel, Santa Rosa, Cerrito, Zumpango)",
-    "Apizaco 3 (Hno. Jorge Luis Pérez)": "Compañerismo 3 (Centro, Xaltocan, Santa Úrsula, San Simón)",
-    "Tlaxco": "Compañerismo 4 (Tlaxco)",
-    
-    # Variaciones posibles
-    "Compañerismo 1": "Compañerismo 1",
-    "Compañerismo 2": "Compañerismo 2 (San José, Tetel, Santa Rosa, Cerrito, Zumpango)",
-    "Compañerismo 3": "Compañerismo 3 (Centro, Xaltocan, Santa Úrsula, San Simón)",
-    "Compañerismo 4": "Compañerismo 4 (Tlaxco)",
+# Los nombres en la BD son: "Apizaco 1", "Apizaco 2", "Apizaco 3"
+# Los mostramos como nombres largos pero los comparamos con los cortos
+mapeo_a_corto = {
+    "Compañerismo 1": "Apizaco 1",
+    "Compañerismo 1 (San José, Tetel, Santa Rosa, Cerrito, Zumpango)": "Apizaco 1",
+    "Compañerismo 2": "Apizaco 2",
+    "Compañerismo 2 (San José, Tetel, Santa Rosa, Cerrito, Zumpango)": "Apizaco 2",
+    "Compañerismo 3": "Apizaco 3",
+    "Compañerismo 3 (Centro, Xaltocan, Santa Úrsula, San Simón)": "Apizaco 3",
+    "Compañerismo 4": "Tlaxco",
+    "Compañerismo 4 (Tlaxco)": "Tlaxco",
+    "Apizaco 1": "Apizaco 1",
+    "Apizaco 2": "Apizaco 2",
+    "Apizaco 3": "Apizaco 3",
+    "Tlaxco": "Tlaxco",
 }
 
-# Aplicar el mapeo a los datos existentes
-if not df_db.empty and "companerismo" in df_db.columns:
-    df_db["companerismo_normalizado"] = df_db["companerismo"].map(mapeo_nombres).fillna(df_db["companerismo"])
-
 # ============================================
-# CONFIGURACIÓN DE COMPAÑERISMOS
+# CONFIGURACIÓN DE COMPAÑERISMOS (nombres para mostrar)
 # ============================================
 zonas_disponibles = [
     "Compañerismo 1",
@@ -213,10 +120,10 @@ zonas_disponibles = [
 # ============================================
 st.sidebar.header("🎛️ Filtros")
 
-zona = st.sidebar.selectbox(
-    "Compañerismo:",
-    zonas_disponibles,
-)
+zona = st.sidebar.selectbox("Compañerismo:", zonas_disponibles)
+
+# Convertir el nombre largo al nombre corto de la BD
+zona_corta = mapeo_a_corto.get(zona, zona)
 
 meses_nombres = {
     1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
@@ -245,13 +152,15 @@ with col_a:
 periodo_str = f"{anio_sel}-{str(mes_sel).zfill(2)}"
 
 if not df_db.empty:
-    # Usar la columna normalizada si existe, si no usar la original
-    col_companerismo = "companerismo_normalizado" if "companerismo_normalizado" in df_db.columns else "companerismo"
-    df_mes = df_db[df_db[col_companerismo] == zona].copy()
+    # Comparar usando el nombre CORTO que está en la BD
+    df_mes = df_db[df_db["companerismo"] == zona_corta].copy()
     if "mes_ano" in df_mes.columns:
         df_mes = df_mes[df_mes["mes_ano"] == periodo_str]
 else:
     df_mes = pd.DataFrame(columns=["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
+
+# Mostrar cuántos registros hay para este compañerismo
+st.sidebar.info(f"📊 {len(df_mes)} registros en {zona}")
 
 # Crear diccionario de registros por fecha
 registros_por_fecha = {}
@@ -322,10 +231,10 @@ for dia in range(1, dias_mes + 1):
             notas = reg.get("notas", "")
             
             html_calendario += '<div class="registro-item">'
-            html_calendario += f'<div class="registro-familia">👨‍👩‍👧 {familia}</div>'
+            html_calendario += f'<div class="registro-familia">👨‍👩‍ {familia}</div>'
             html_calendario += f'<div class="registro-tel">📞 {telefono}</div>'
             if notas:
-                html_calendario += f'<div class="registro-notas"> {notas}</div>'
+                html_calendario += f'<div class="registro-notas">📝 {notas}</div>'
             html_calendario += '</div>'
     else:
         html_calendario += '<div class="disponible-badge">✅ Libre</div>'
@@ -340,7 +249,7 @@ st.divider()
 # ============================================
 # TABS
 # ============================================
-tab1, tab2 = st.tabs(["📋 Lista de registros", "✍️ Apuntarse a una fecha"])
+tab1, tab2 = st.tabs(["📋 Lista de registros", "️ Apuntarse a una fecha"])
 
 with tab1:
     st.subheader(f"Registros de {meses_nombres[mes_sel]} {anio_sel}")
@@ -356,7 +265,7 @@ with tab1:
     # ZONA DE ADMINISTRACIÓN (PROTEGIDA)
     # ============================================
     st.divider()
-    st.subheader("🔐 Zona de Administración")
+    st.subheader(" Zona de Administración")
     
     if 'admin_authenticated' not in st.session_state:
         st.session_state.admin_authenticated = False
@@ -366,7 +275,7 @@ with tab1:
         
         with st.form("login_form"):
             password = st.text_input("Contraseña", type="password")
-            submitted = st.form_submit_button(" Ingresar", use_container_width=True)
+            submitted = st.form_submit_button("🔓 Ingresar", use_container_width=True)
             
             if submitted:
                 admin_password = st.secrets.get("admin", {}).get("password", "")
@@ -437,7 +346,7 @@ with tab1:
                 col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
                 
                 with col1:
-                    st.write(f"**📅 {row['fecha']}**")
+                    st.write(f"** {row['fecha']}**")
                 with col2:
                     st.write(f"👨‍👩‍👧 {row['familia']}")
                 with col3:
@@ -481,14 +390,14 @@ with tab1:
                                 st.session_state[f"editando_{registro_id}"] = False
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"❌ Error: {e}")
+                                st.error(f" Error: {e}")
                         
                         if cancelar:
                             st.session_state[f"editando_{registro_id}"] = False
                             st.rerun()
                 
                 if st.session_state.get(f"eliminando_{registro_id}"):
-                    st.markdown(f"**🗑️ ¿Eliminar {row['fecha']} - {row['familia']}?**")
+                    st.markdown(f"**️ ¿Eliminar {row['fecha']} - {row['familia']}?**")
                     
                     col_c1, col_c2 = st.columns(2)
                     with col_c1:
@@ -547,7 +456,7 @@ with tab2:
                 if f_nombre and f_tel:
                     if f_fecha.weekday() != 0 and f_fecha in fechas_disponibles:
                         nuevo_registro = {
-                            "companerismo": zona,
+                            "companerismo": zona_corta,  # Guardar con el nombre corto de la BD
                             "mes_ano": periodo_str,
                             "fecha": str(f_fecha),
                             "familia": f_nombre,
