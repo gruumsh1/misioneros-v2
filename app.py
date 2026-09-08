@@ -1,26 +1,52 @@
 import datetime
 import pandas as pd
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
+import gspread
+from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Comidas Misioneros - Apizaco y Tlaxco", layout="wide")
-st.title("🍽️ Calendario de Comidas para Misioneros")
+st.title("️ Calendario de Comidas para Misioneros")
 
-# Conexión a Google Sheets
+# Credenciales hardcodeadas (temporalmente para probar)
+SERVICE_ACCOUNT_INFO = {
+    "type": "service_account",
+    "project_id": "calendario-misioneros",
+    "private_key_id": "22c91ea8109bdf8a85c1e19ce357d267291a41d4",
+    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDXBGA/TYRJDeBy1ChJqIO0H1av7ePdR8iPXIUckakDM+JBJ2nRlD+UTsSKtCEauV2S8ahYLuG5C+FhavGHGasMB73QRtl7PP/jAU8x/FEtUeBdyczUUkXZmWDwd1lbqqAhtgcvaGNYvZj+oe8fDNgYflCDTm5o9BOy3X2/NfhHBTxxtHV6SL7t/ZG4MS3lv81EOQVFXHH2OlHE0WEbTz2eYn+fyghUJIXVRh9G4GvlK//kHRLQdbjKMnPzue9QEqtiR872eaI1b6Te2htpff0DK5FBeKDY7ZQzJMdw9R3QQKhLwSA0CEHp0k2GnkofSlNVx7inR83OJUpFOWi75gf/AgMBAAECggEAM4M7386dc7ccX8ZORJ9Xtk6PwSRYJApvlVEQHvESsc67VOqxYmGG/ewFEEnpaHKiZXL55u6Ma33aKDGr3bcbkI1GP2DJ98l8cJE+vPX7KMVl4HJZXUC8tU4WuGWPhfOR26G1hPkYXAlIXzDCjgjQuMWCWoLu1rwq//4qgyXV7oV1Mmu55vhuA20txrqtAiP3Mcqqkep5HDoGzoFtxzALJ6Mos2tCGTSaOlLpSaqGXu5aWKsUu/07TrAzkvG7eAtPlc4E16jzNnbseLgJ2RK/E0CZmsfd1nAzHyu+SBB75eDDULQIB4p0gZl03qBB/EEPXuMD4ZcVHXihV3M4ooAxCQKBgQDs8tHDrFQV/eBAXBtN3uKJwyfQaDoFrkeV3vXT989ypYT/0h5Ia8e14WiCXh8CdKQWBS5cmB3wh5Zg19AelfqLzXlbT2zpLTc69E6AOq3iZIP/mg5r4135Npf+Wn5oa+r1x8Mir69UIB93Jl8R05OHrvas64fs6qOkJVZCY5ewtQKBgQDoTiLAG9JOYk85IecmbvhfeH5DQFkLE820mduL9GXYtLTcx5cEl38DMw92dAywpqrAjex84BYNnyWVi1F9epMhy/ztB6iMf0qUBU8wJAabsA6Vl+8c1vCsp575YqjMFQjExO2XlkZO4aaZ6rRPbHxZa/ujMbLCDCh/dv59yqMqYwKBgASR6lnLyRNjgh+7pwspcVUW3n22hOf3JIpPco5UCTw81QPaGZtr+L4ZStq41gBGH6QNFYfTp0AsXUog33K3kc2AeQa50W/t31LTw2/VseTb62/SmNSb3gQgeW3+cNGywyVaZPkWSltlAzZZFxxQ6FeFmFxdbpGzNNTFo5REN3jBAoGBAMvGPpVl0kUP1462Pp1oGlckyx0TBQjChl8113AdInnFiiFgswhEHBYiZB30Dm2mxYHC/P9NUgsA32ceno0DSK0M0wDZBvC3eCP/xEbmUyWeeiye6hDSOqw5HSqFcKwUh2yTkha2q1Xmes3pI+HHuAx4vHOa1MODBsNJDlQpvJchAoGAfgwR/6ZagMYnYUhhwhSskPS4wxApEpBk8reJCnHdxSkNI/JnTRF4vhDBYLX8XvEokTnb9YF2EPG+5LZbeS78JILHhk/F0G//FwH3UZ7lRTHYnwfwQKybBUtdSQlkQ84X0VPHkLvmcm+vtinTvGpHKEP5P0fXbZjlznWFkCD1EV8=\n-----END PRIVATE KEY-----\n",
+    "client_email": "streamlit-bot@calendario-misioneros.iam.gserviceaccount.com",
+    "client_id": "117212862484663181550",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/streamlit-bot%40calendario-misioneros.iam.gserviceaccount.com"
+}
+
+# Autenticación directa con gspread
 try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    st.sidebar.success("✅ Conexión establecida")
+    credentials = Credentials.from_service_account_info(
+        SERVICE_ACCOUNT_INFO,
+        scopes=["https://www.googleapis.com/auth/spreadsheets"]
+    )
+    gc = gspread.authorize(credentials)
+    
+    # Abrir la hoja de cálculo
+    spreadsheet_id = "1DEg_PWnzuzXeAL9r6GfHjphX_8we9rsDPgdQS5RT6Q0"
+    sh = gc.open_by_key(spreadsheet_id)
+    worksheet = sh.sheet1
+    
+    st.sidebar.success("✅ Conectado con gspread")
 except Exception as e:
-    st.error(f"❌ Error al conectar: {e}")
+    st.error(f"❌ Error de conexión: {e}")
     st.stop()
 
 # Columnas esperadas
 expected_columns = ["Compañerismo", "Mes-Año", "Fecha", "Familia / Hermano", "Teléfono", "Notas"]
 
-# Leer los datos
+# Leer datos
 try:
-    df_db = conn.read(ttl=0)
-    if df_db is None or df_db.empty or not all(col in df_db.columns for col in expected_columns):
+    data = worksheet.get_all_records()
+    df_db = pd.DataFrame(data)
+    if df_db.empty or not all(col in df_db.columns for col in expected_columns):
         df_db = pd.DataFrame(columns=expected_columns)
     else:
         df_db = df_db[expected_columns]
@@ -67,10 +93,9 @@ with tab2:
         
         if st.form_submit_button("Guardar Registro"):
             if f_nombre and f_tel and f_fecha.month == mes_sel and f_fecha.year == anio_sel:
-                nuevo = pd.DataFrame([{"Compañerismo": zona, "Mes-Año": periodo_str, "Fecha": str(f_fecha), "Familia / Hermano": f_nombre, "Teléfono": f_tel, "Notas": f_notas}])
+                nuevo = [zona, periodo_str, str(f_fecha), f_nombre, f_tel, f_notas]
                 try:
-                    df_actualizado = pd.concat([df_db.dropna(how="all"), nuevo], ignore_index=True)
-                    conn.update(data=df_actualizado)
+                    worksheet.append_row(nuevo)
                     st.success(f"✅ ¡Guardado con éxito para el {f_fecha}!")
                     st.rerun()
                 except Exception as e:
