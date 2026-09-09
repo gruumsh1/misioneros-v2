@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # ============================================
-# ESTILOS: paleta tipo Iglesia SUD + vista móvil en agenda
+# ESTILOS: paleta tipo Iglesia SUD + ajustes móviles
 # ============================================
 st.markdown("""
 <style>
@@ -52,7 +52,7 @@ h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem;color:#12395B}
 /* Foco siempre visible (WCAG 2.4.7) */
 :focus-visible{outline:3px solid #12395B;outline-offset:2px}
 
-/* ---- Calendario de rejilla (escritorio / tablet) ---- */
+/* ---- Calendario de rejilla ---- */
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:.6rem}
 .cal-head{background:#12395B;color:#FFFFFF;text-align:center;font-weight:700;
   font-size:.8rem;padding:8px 2px;border-radius:8px;letter-spacing:.03em}
@@ -89,29 +89,18 @@ h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem;color:#12395B}
 .chip-ocup{background:#E7F0FA;border-color:#1668C3}
 .chip-desc{background:#EEF1F4;border-style:dashed;border-color:#B9C2CC}
 
-/* En celular: se oculta la rejilla y se muestra la agenda */
-/* En celular: se ven AMBOS: rejilla para capturas + agenda con teléfonos tocables */
+/* Texto corto del lunes: oculto por defecto */
+.t-corto{display:none}
+
+/* ===== Ajustes finos de ancho en celular ===== */
 @media (max-width:640px){
   .solo-escritorio{display:block}
   .solo-movil{display:block}
-  .cal-grid{gap:3px}
-  .cal-head{font-size:.62rem;padding:6px 1px}
-  .cal-cell{min-height:58px;padding:4px 3px}
-  .cal-day{font-size:.95rem}
-  .cal-state{font-size:.58rem}
-  .cal-fam{font-size:.62rem}
-  .cal-tel{font-size:.58rem}
-}
-/* ===== Ajustes finos de ancho en celular ===== */
-.t-corto{display:none}
-@media (max-width:640px){
-  /* Aprovechar todo el ancho de la pantalla */
   .block-container,[data-testid="stAppViewBlockContainer"]{
     padding-left:0.35rem !important;padding-right:0.35rem !important}
   [data-testid="stVerticalBlockBorderWrapper"],
   [data-testid="stVerticalBlockBorderWrapper"] > div{
     padding:0.35rem !important}
-  /* Lunes angosto; los demás días ganan espacio */
   .cal-grid{gap:2px;grid-template-columns:0.55fr repeat(6,1fr)}
   .cal-head{font-size:.55rem;padding:5px 1px;letter-spacing:0}
   .cal-cell{min-height:56px !important;padding:3px 2px}
@@ -119,7 +108,6 @@ h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem;color:#12395B}
   .cal-state{font-size:.5rem}
   .cal-fam{font-size:.6rem}
   .cal-tel{font-size:.52rem}
-  /* En lunes solo se muestra "DES" */
   .t-largo{display:none}
   .t-corto{display:inline}
   .cal-cell.lunes .cal-state{font-size:.45rem}
@@ -303,12 +291,12 @@ dias_mes = (ultimo_dia - primer_dia).days + 1
 dia_semana_inicio = primer_dia.weekday()
 
 # ============================================
-# TARJETA 2: CALENDARIO (rejilla en PC, agenda en celular)
+# TARJETA 2: CALENDARIO (rejilla en PC, rejilla + agenda en celular)
 # ============================================
 with st.container(border=True):
     st.markdown(f"### {meses_nombres[mes_sel]} {anio_sel} · {zona}")
 
-    # ---- Rejilla para escritorio / tablet ----
+    # ---- Rejilla ----
     html_cal = '<div class="solo-escritorio"><div class="cal-grid">'
     for d in DIAS_CORTOS:
         html_cal += f'<div class="cal-head">{d}</div>'
@@ -335,7 +323,6 @@ with st.container(border=True):
         if es_lunes:
             html_cal += '<div class="cal-state st-descanso"><span class="t-largo">DESCANSO</span><span class="t-corto">DES</span></div>'
         elif regs:
-            
             for r in regs:
                 html_cal += f'<div class="cal-fam">{html.escape(r["familia"])}</div>'
                 html_cal += f'<div class="cal-tel">{html.escape(r["telefono"])}</div>'
@@ -353,7 +340,7 @@ with st.container(border=True):
     </div>
     """
 
-    # ---- Agenda vertical para celular: nombre y teléfono visibles ----
+    # ---- Agenda vertical para celular ----
     html_agenda = '<div class="solo-movil">'
     for dia in range(1, dias_mes + 1):
         f_act = datetime.date(anio_sel, mes_sel, dia)
