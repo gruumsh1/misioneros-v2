@@ -15,8 +15,7 @@ st.set_page_config(
 )
 
 # ============================================
-# ESTILOS: paleta inspirada en la identidad de la Iglesia
-# Blanco + azul profundo + azul medio + dorado templado
+# ESTILOS: paleta tipo Iglesia SUD + vista móvil en agenda
 # ============================================
 st.markdown("""
 <style>
@@ -53,7 +52,7 @@ h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem;color:#12395B}
 /* Foco siempre visible (WCAG 2.4.7) */
 :focus-visible{outline:3px solid #12395B;outline-offset:2px}
 
-/* Calendario */
+/* ---- Calendario de rejilla (escritorio / tablet) ---- */
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:.6rem}
 .cal-head{background:#12395B;color:#FFFFFF;text-align:center;font-weight:700;
   font-size:.8rem;padding:8px 2px;border-radius:8px;letter-spacing:.03em}
@@ -70,11 +69,18 @@ h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem;color:#12395B}
 .cal-fam{font-size:.72rem;color:#1F2A37;font-weight:600;margin-top:3px;line-height:1.25;word-break:break-word}
 .cal-tel{font-size:.68rem;color:#55677A;word-break:break-word}
 
-/* Lista de registros */
-.reg-row{background:#FFFFFF;border:1px solid #D9E1EA;border-radius:10px;padding:.6rem .7rem;margin-bottom:.5rem}
-.reg-fecha{font-weight:800;font-size:1rem;color:#12395B}
-.reg-fam{font-weight:600}
-.reg-row a{color:#0F4C81;font-weight:700}
+/* ---- Agenda vertical (solo celular) ---- */
+.solo-movil{display:none}
+.agenda-row{background:#FFFFFF;border:1px solid #D9E1EA;border-radius:10px;
+  padding:.55rem .6rem;margin-bottom:.45rem;display:flex;gap:.6rem;align-items:flex-start}
+.agenda-row.ocupado{background:#E7F0FA;border-color:#1668C3}
+.agenda-row.lunes{background:#EEF1F4;border-style:dashed;border-color:#B9C2CC}
+.agenda-row.hoy{border:2px solid #B98A2E}
+.agenda-dia{font-weight:800;color:#12395B;min-width:3.6rem;line-height:1.3}
+.agenda-cuerpo{flex:1;min-width:0}
+.agenda-estado{font-size:.78rem;font-weight:700;letter-spacing:.04em}
+.agenda-fam{font-weight:700;color:#1F2A37;word-break:break-word}
+.agenda-row a{color:#0F4C81;font-weight:700;word-break:break-word}
 
 /* Leyenda con texto (no solo color, WCAG 1.4.1) */
 .legend{display:flex;gap:.9rem;flex-wrap:wrap;margin-top:.7rem;font-size:.85rem;color:#1F2A37}
@@ -83,14 +89,10 @@ h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem;color:#12395B}
 .chip-ocup{background:#E7F0FA;border-color:#1668C3}
 .chip-desc{background:#EEF1F4;border-style:dashed;border-color:#B9C2CC}
 
-/* Móvil: calendario compacto, detalles quedan en la lista */
+/* En celular: se oculta la rejilla y se muestra la agenda */
 @media (max-width:640px){
-  .cal-grid{gap:3px}
-  .cal-cell{min-height:64px;padding:4px 2px}
-  .cal-day{font-size:.95rem}
-  .cal-state{font-size:.58rem}
-  .cal-fam,.cal-tel{display:none}
-  .cal-head{font-size:.62rem;padding:6px 1px}
+  .solo-escritorio{display:none}
+  .solo-movil{display:block}
 }
 </style>
 """, unsafe_allow_html=True)
@@ -167,6 +169,7 @@ meses_nombres = {
     7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre",
 }
 DIAS_SEMANA = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+DIAS_CORTOS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 
 hoy = datetime.date.today()
 
@@ -270,14 +273,14 @@ dias_mes = (ultimo_dia - primer_dia).days + 1
 dia_semana_inicio = primer_dia.weekday()
 
 # ============================================
-# TARJETA 2: CALENDARIO
+# TARJETA 2: CALENDARIO (rejilla en PC, agenda en celular)
 # ============================================
 with st.container(border=True):
     st.markdown(f"### {meses_nombres[mes_sel]} {anio_sel} · {zona}")
 
-    dias_cab = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
-    html_cal = '<div class="cal-grid">'
-    for d in dias_cab:
+    # ---- Rejilla para escritorio / tablet ----
+    html_cal = '<div class="solo-escritorio"><div class="cal-grid">'
+    for d in DIAS_CORTOS:
         html_cal += f'<div class="cal-head">{d}</div>'
     for _ in range(dia_semana_inicio):
         html_cal += '<div class="cal-cell vacio"></div>'
@@ -317,8 +320,44 @@ with st.container(border=True):
       <span><span class="chip chip-ocup"></span>Ocupado: ya hay familia</span>
       <span><span class="chip chip-desc"></span>Lunes: descanso</span>
     </div>
+    </div>
     """
-    st.markdown(html_cal, unsafe_allow_html=True)
+
+    # ---- Agenda vertical para celular: nombre y teléfono visibles ----
+    html_agenda = '<div class="solo-movil">'
+    for dia in range(1, dias_mes + 1):
+        f_act = datetime.date(anio_sel, mes_sel, dia)
+        f_str = str(f_act)
+        es_lunes = f_act.weekday() == 0
+        es_hoy = f_act == hoy
+        regs = registros_por_fecha.get(f_str, [])
+
+        clase = "agenda-row"
+        if es_lunes:
+            clase += " lunes"
+        elif es_hoy:
+            clase += " hoy"
+        if regs and not es_lunes:
+            clase += " ocupado"
+
+        html_agenda += f'<div class="{clase}">'
+        html_agenda += f'<div class="agenda-dia">{DIAS_CORTOS[f_act.weekday()]} {dia}</div>'
+        html_agenda += '<div class="agenda-cuerpo">'
+        if es_lunes:
+            html_agenda += '<div class="agenda-estado st-descanso">DESCANSO</div>'
+        elif regs:
+            for r in regs:
+                tel_clean = "".join(ch for ch in r["telefono"] if ch.isdigit() or ch == "+")
+                html_agenda += f'<div class="agenda-fam">{html.escape(r["familia"])}</div>'
+                html_agenda += f'<a href="tel:{tel_clean}">Llamar: {html.escape(r["telefono"])}</a>'
+                if r["notas"]:
+                    html_agenda += f'<div class="muted">{html.escape(r["notas"])}</div>'
+        else:
+            html_agenda += '<div class="agenda-estado st-libre">LIBRE</div>'
+        html_agenda += '</div></div>'
+    html_agenda += '</div>'
+
+    st.markdown(html_cal + html_agenda, unsafe_allow_html=True)
 
 # ============================================
 # TARJETA 3: REGISTRO (primero la acción)
