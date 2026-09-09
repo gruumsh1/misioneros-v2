@@ -2,3 +2,5 @@ streamlit==1.63.0
 pandas==3.0.5
 supabase==2.15.0
 streamlit-calendar==0.2.0
+pillow
+fpdf2
