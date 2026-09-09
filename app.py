@@ -56,7 +56,7 @@ h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem;color:#12395B}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:.6rem}
 .cal-head{background:#12395B;color:#FFFFFF;text-align:center;font-weight:700;
   font-size:.8rem;padding:8px 2px;border-radius:8px;letter-spacing:.03em}
-.cal-cell{background:#FFFFFF;border:1.5px solid #D9E1EA;border-radius:10px;padding:6px 4px;min-height:92px}
+.cal-cell{background:#FFFFFF;border:1.5px solid #D9E1EA;border-radius:10px;padding:6px 4px;min-height:78px}
 .cal-cell.ocupado{background:#E7F0FA;border-color:#1668C3}
 .cal-cell.hoy{border:3px solid #B98A2E}
 .cal-cell.lunes{background:#EEF1F4;border-style:dashed;border-color:#B9C2CC}
@@ -96,7 +96,7 @@ h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem;color:#12395B}
   .solo-movil{display:block}
   .cal-grid{gap:3px}
   .cal-head{font-size:.62rem;padding:6px 1px}
-  .cal-cell{min-height:70px;padding:4px 3px}
+  .cal-cell{min-height:58px;padding:4px 3px}
   .cal-day{font-size:.95rem}
   .cal-state{font-size:.58rem}
   .cal-fam{font-size:.62rem}
@@ -313,7 +313,7 @@ with st.container(border=True):
         if es_lunes:
             html_cal += '<div class="cal-state st-descanso">DESCANSO</div>'
         elif regs:
-            html_cal += '<div class="cal-state st-ocupado">OCUPADO</div>'
+            
             for r in regs:
                 html_cal += f'<div class="cal-fam">{html.escape(r["familia"])}</div>'
                 html_cal += f'<div class="cal-tel">{html.escape(r["telefono"])}</div>'
@@ -325,7 +325,7 @@ with st.container(border=True):
     html_cal += """
     <div class="legend">
       <span><span class="chip chip-libre"></span>Libre: puede anotarse</span>
-      <span><span class="chip chip-ocup"></span>Ocupado: ya hay familia</span>
+      <span><span class="chip chip-ocup"></span>Con familia: día asignado</span>
       <span><span class="chip chip-desc"></span>Lunes: descanso</span>
     </div>
     </div>
