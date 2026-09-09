@@ -90,9 +90,17 @@ h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem;color:#12395B}
 .chip-desc{background:#EEF1F4;border-style:dashed;border-color:#B9C2CC}
 
 /* En celular: se oculta la rejilla y se muestra la agenda */
+/* En celular: se ven AMBOS: rejilla para capturas + agenda con teléfonos tocables */
 @media (max-width:640px){
-  .solo-escritorio{display:none}
+  .solo-escritorio{display:block}
   .solo-movil{display:block}
+  .cal-grid{gap:3px}
+  .cal-head{font-size:.62rem;padding:6px 1px}
+  .cal-cell{min-height:70px;padding:4px 3px}
+  .cal-day{font-size:.95rem}
+  .cal-state{font-size:.58rem}
+  .cal-fam{font-size:.62rem}
+  .cal-tel{font-size:.58rem}
 }
 </style>
 """, unsafe_allow_html=True)
