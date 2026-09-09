@@ -102,6 +102,28 @@ h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem;color:#12395B}
   .cal-fam{font-size:.62rem}
   .cal-tel{font-size:.58rem}
 }
+/* ===== Ajustes finos de ancho en celular ===== */
+.t-corto{display:none}
+@media (max-width:640px){
+  /* Aprovechar todo el ancho de la pantalla */
+  .block-container,[data-testid="stAppViewBlockContainer"]{
+    padding-left:0.35rem !important;padding-right:0.35rem !important}
+  [data-testid="stVerticalBlockBorderWrapper"],
+  [data-testid="stVerticalBlockBorderWrapper"] > div{
+    padding:0.35rem !important}
+  /* Lunes angosto; los demás días ganan espacio */
+  .cal-grid{gap:2px;grid-template-columns:0.55fr repeat(6,1fr)}
+  .cal-head{font-size:.55rem;padding:5px 1px;letter-spacing:0}
+  .cal-cell{min-height:56px !important;padding:3px 2px}
+  .cal-day{font-size:.9rem}
+  .cal-state{font-size:.5rem}
+  .cal-fam{font-size:.6rem}
+  .cal-tel{font-size:.52rem}
+  /* En lunes solo se muestra "DES" */
+  .t-largo{display:none}
+  .t-corto{display:inline}
+  .cal-cell.lunes .cal-state{font-size:.45rem}
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -311,7 +333,7 @@ with st.container(border=True):
         html_cal += f'<div class="{clase}">'
         html_cal += f'<div class="cal-day">{dia}</div>'
         if es_lunes:
-            html_cal += '<div class="cal-state st-descanso">DESCANSO</div>'
+            html_cal += '<div class="cal-state st-descanso"><span class="t-largo">DESCANSO</span><span class="t-corto">DES</span></div>'
         elif regs:
             
             for r in regs:
