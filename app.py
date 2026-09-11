@@ -194,6 +194,7 @@ hoy = datetime.date.today()
 
 # ============================================
 # GENERADORES DE IMAGEN Y PDF DEL CALENDARIO
+# (incluyen notas/comentarios y altura automática)
 # ============================================
 def _fuente(size, bold=False):
     rutas = [
@@ -242,12 +243,9 @@ def generar_png_calendario(anio, mes, titulo, regs_por_fecha, fecha_hoy):
     head_h = 95
     dayhead_h = 46
     cell_w = (W - 2 * pad) / 7
-    cell_h = 165
-    filas = math.ceil((offset + n_dias) / 7)
-    H = pad + head_h + dayhead_h + filas * cell_h + 70
 
-    img = Image.new("RGB", (W, H), "#FFFFFF")
-    d = ImageDraw.Draw(img)
+    tmp = Image.new("RGB", (10, 10))
+    dtmp = ImageDraw.Draw(tmp)
 
     f_tit = _fuente(36, True)
     f_sub = _fuente(22)
@@ -255,11 +253,57 @@ def generar_png_calendario(anio, mes, titulo, regs_por_fecha, fecha_hoy):
     f_day = _fuente(27, True)
     f_fam = _fuente(17)
     f_tel = _fuente(15)
+    f_nota = _fuente(14)
     f_est = _fuente(15, True)
     f_leg = _fuente(18)
 
+    def celdas_lineas(dia):
+        f_act = datetime.date(anio, mes, dia)
+        regs = regs_por_fecha.get(str(f_act), [])
+        es_lunes = f_act.weekday() == 0
+        es_hoy = f_act == fecha_hoy
+        lineas = [(str(dia), f_day, "#1F2A37", 34)]
+        if es_lunes:
+            lineas.append(("DESCANSO", f_est, "#55677A", 22))
+            estado = "lunes"
+        elif regs:
+            estado = "ocupado"
+            for r in regs:
+                for ln in _wrap_pix(dtmp, r["familia"], f_fam, cell_w - 16):
+                    lineas.append((ln, f_fam, "#1F2A37", 21))
+                for ln in _wrap_pix(dtmp, r["telefono"], f_tel, cell_w - 16):
+                    lineas.append((ln, f_tel, "#55677A", 18))
+                notas = str(r.get("notas", "") or "").strip()
+                if notas:
+                    for ln in _wrap_pix(dtmp, f"Nota: {notas}", f_nota, cell_w - 16):
+                        lineas.append((ln, f_nota, "#55677A", 17))
+        else:
+            lineas.append(("LIBRE", f_est, "#2E6B34", 22))
+            estado = "libre"
+        return lineas, estado, es_hoy
+
+    filas = math.ceil((offset + n_dias) / 7)
+    filas_datos = []
+    for row in range(filas):
+        celdas = []
+        alto_row = 120
+        for col in range(7):
+            dia = row * 7 + col - offset + 1
+            if dia < 1 or dia > n_dias:
+                celdas.append(None)
+                continue
+            lineas, estado, es_hoy = celdas_lineas(dia)
+            alto = sum(a for _, _, _, a in lineas) + 16
+            alto_row = max(alto_row, alto)
+            celdas.append((lineas, estado, es_hoy))
+        filas_datos.append((celdas, alto_row))
+
+    H = pad + head_h + dayhead_h + sum(a for _, a in filas_datos) + 70
+    img = Image.new("RGB", (W, H), "#FFFFFF")
+    d = ImageDraw.Draw(img)
+
     d.text((pad, pad), titulo, font=f_tit, fill="#12395B")
-    d.text((pad, pad + 48), f"Comidas para misioneros · Apizaco y Tlaxco", font=f_sub, fill="#55677A")
+    d.text((pad, pad + 48), "Comidas para misioneros - Apizaco y Tlaxco", font=f_sub, fill="#55677A")
 
     y0 = pad + head_h
     for i, nombre in enumerate(DIAS_CORTOS):
@@ -268,47 +312,30 @@ def generar_png_calendario(anio, mes, titulo, regs_por_fecha, fecha_hoy):
         w_txt = d.textlength(nombre, font=f_head)
         d.text((x + (cell_w - 4 - w_txt) / 2, y0 + 10), nombre, font=f_head, fill="#FFFFFF")
 
-    gy = y0 + dayhead_h
-    for idx in range(filas * 7):
-        dia = idx - offset + 1
-        col = idx % 7
-        row = idx // 7
-        x = pad + col * cell_w
-        y = gy + row * cell_h
-        if dia < 1 or dia > n_dias:
-            continue
-        f_act = datetime.date(anio, mes, dia)
-        regs = regs_por_fecha.get(str(f_act), [])
-        es_lunes = f_act.weekday() == 0
-        es_hoy = f_act == fecha_hoy
+    y = y0 + dayhead_h
+    for celdas, alto_row in filas_datos:
+        for col in range(7):
+            info = celdas[col]
+            if info is None:
+                continue
+            lineas, estado, es_hoy = info
+            x = pad + col * cell_w
+            if estado == "lunes":
+                fill, border = "#EEF1F4", "#B9C2CC"
+            elif estado == "ocupado":
+                fill, border = "#E7F0FA", "#1668C3"
+            else:
+                fill, border = "#FFFFFF", "#D9E1EA"
+            d.rectangle([x, y, x + cell_w - 4, y + alto_row - 6], fill=fill, outline=border, width=2)
+            if es_hoy:
+                d.rectangle([x, y, x + cell_w - 4, y + alto_row - 6], outline="#B98A2E", width=5)
+            yy = y + 6
+            for texto, font, color, alto in lineas:
+                d.text((x + 8, yy), texto, font=font, fill=color)
+                yy += alto
+        y += alto_row
 
-        if es_lunes:
-            fill, border = "#EEF1F4", "#B9C2CC"
-        elif regs:
-            fill, border = "#E7F0FA", "#1668C3"
-        else:
-            fill, border = "#FFFFFF", "#D9E1EA"
-        d.rectangle([x, y, x + cell_w - 4, y + cell_h - 6], fill=fill, outline=border, width=2)
-        if es_hoy:
-            d.rectangle([x, y, x + cell_w - 4, y + cell_h - 6], outline="#B98A2E", width=5)
-
-        d.text((x + 8, y + 6), str(dia), font=f_day, fill="#1F2A37")
-
-        yy = y + 42
-        if es_lunes:
-            d.text((x + 8, yy), "DESCANSO", font=f_est, fill="#55677A")
-        elif regs:
-            for r in regs:
-                for ln in _wrap_pix(d, r["familia"], f_fam, cell_w - 16):
-                    d.text((x + 8, yy), ln, font=f_fam, fill="#1F2A37")
-                    yy += 21
-                for ln in _wrap_pix(d, r["telefono"], f_tel, cell_w - 16):
-                    d.text((x + 8, yy), ln, font=f_tel, fill="#55677A")
-                    yy += 18
-        else:
-            d.text((x + 8, yy), "LIBRE", font=f_est, fill="#2E6B34")
-
-    ly = gy + filas * cell_h + 12
+    ly = y + 12
     d.rectangle([pad, ly, pad + 22, ly + 22], fill="#FFFFFF", outline="#D9E1EA", width=2)
     d.text((pad + 30, ly + 2), "Libre: puede anotarse", font=f_leg, fill="#1F2A37")
     d.rectangle([pad + 300, ly, pad + 322, ly + 22], fill="#E7F0FA", outline="#1668C3", width=2)
@@ -345,7 +372,31 @@ def generar_pdf_calendario(anio, mes, titulo, regs_por_fecha, fecha_hoy):
     line_h = 3.8
     pdf.set_text_color(31, 42, 55)
     filas = math.ceil((offset + n_dias) / 7)
+
+    def agregar_wrap(lineas, texto):
+        act = ""
+        for p in str(texto).split(" "):
+            prueba = f"{act} {p}".strip()
+            if pdf.get_string_width(prueba) <= cw - 3 or not act:
+                act = prueba
+            else:
+                lineas.append(act)
+                act = p
+        lineas.append(act)
+
     for row in range(filas):
+        y0 = pdf.get_y()
+        if y0 > 240:
+            pdf.add_page()
+            pdf.set_font("Helvetica", "B", 9)
+            pdf.set_fill_color(18, 57, 91)
+            pdf.set_text_color(255, 255, 255)
+            for nombre in DIAS_CORTOS:
+                pdf.cell(cw, 7, nombre, border=1, align="C", fill=True)
+            pdf.ln()
+            pdf.set_text_color(31, 42, 55)
+            y0 = pdf.get_y()
+
         celdas = []
         max_lineas = 1
         pdf.set_font("Helvetica", "", 7.5)
@@ -365,23 +416,16 @@ def generar_pdf_calendario(anio, mes, titulo, regs_por_fecha, fecha_hoy):
             elif regs:
                 estado = "ocupado"
                 for r in regs:
-                    txt = f'{r["familia"]} {r["telefono"]}'
-                    act = ""
-                    for p in txt.split(" "):
-                        prueba = f"{act} {p}".strip()
-                        if pdf.get_string_width(prueba) <= cw - 3 or not act:
-                            act = prueba
-                        else:
-                            lineas.append(act)
-                            act = p
-                    lineas.append(act)
+                    agregar_wrap(lineas, f'{r["familia"]} {r["telefono"]}')
+                    notas = str(r.get("notas", "") or "").strip()
+                    if notas:
+                        agregar_wrap(lineas, f'Nota: {notas}')
             else:
                 lineas.append("LIBRE")
                 estado = "libre"
             max_lineas = max(max_lineas, len(lineas))
             celdas.append((lineas, estado, es_hoy))
         row_h = max(14, max_lineas * line_h + 3)
-        y0 = pdf.get_y()
         for col in range(7):
             info = celdas[col]
             if info is None:
