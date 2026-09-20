@@ -18,6 +18,12 @@ st.set_page_config(
 )
 
 # ============================================
+# REGLAS AUTOMÁTICAS DE APERTURA DE MES
+# ============================================
+UMBRAL_DIAS_LIBRES = 3      # con este número de días libres o menos, se avisa del mes siguiente
+MESES_ADELANTE_MAX = 3      # cuántos meses avanza la búsqueda automática de lugar
+
+# ============================================
 # ESTILOS: paleta tipo Iglesia SUD + ajustes móviles
 # ============================================
 st.markdown("""
@@ -193,6 +199,52 @@ DIAS_CORTOS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
 hoy = datetime.date.today()
 
 # ============================================
+# HELPERS DE FECHAS Y DISPONIBILIDAD
+# ============================================
+def ultimo_dia_de(anio, mes):
+    if mes == 12:
+        return datetime.date(anio + 1, 1, 1) - timedelta(days=1)
+    return datetime.date(anio, mes + 1, 1) - timedelta(days=1)
+
+def shift_month(ym, delta):
+    y, m = ym
+    m += delta
+    if m < 1:
+        y, m = y - 1, 12
+    elif m > 12:
+        y, m = y + 1, 1
+    nuevo = (y, m)
+    if nuevo < (2025, 1):
+        nuevo = (2025, 1)
+    if nuevo > (2027, 12):
+        nuevo = (2027, 12)
+    return nuevo
+
+# Conjunto de fechas ocupadas por zona (para cálculos rápidos)
+ocupadas_por_zona = {}
+if not df_db.empty:
+    for _, r in df_db.iterrows():
+        fs = str(r["fecha"])[:10]
+        ocupadas_por_zona.setdefault(str(r["companerismo"]), set()).add(fs)
+
+def dias_libres_restantes(zona_corta, anio, mes):
+    """Cuenta días anotables desde hoy hasta fin del mes (sin lunes y sin ocupados)."""
+    u = ultimo_dia_de(anio, mes)
+    ocup = ocupadas_por_zona.get(zona_corta, set())
+    libres = 0
+    d = max(datetime.date(anio, mes, 1), hoy)
+    while d <= u:
+        if d.weekday() != 0 and str(d) not in ocup:
+            libres += 1
+        d += timedelta(days=1)
+    return libres
+
+def al_cambiar_zona():
+    """Al cambiar de compañerismo, regresa a la vista automática del mes actual."""
+    st.session_state["vista_manual"] = False
+    st.session_state["view_ym"] = (hoy.year, hoy.month)
+
+# ============================================
 # GENERADORES DE IMAGEN Y PDF DEL CALENDARIO
 # (incluyen notas/comentarios y altura automática)
 # ============================================
@@ -229,11 +281,7 @@ def _wrap_pix(draw, texto, font, max_w):
 
 def _datos_mes(anio, mes, regs_por_fecha):
     p_dia = datetime.date(anio, mes, 1)
-    if mes == 12:
-        u_dia = datetime.date(anio + 1, 1, 1) - timedelta(days=1)
-    else:
-        u_dia = datetime.date(anio, mes + 1, 1) - timedelta(days=1)
-    n_dias = (u_dia - p_dia).days + 1
+    n_dias = (ultimo_dia_de(anio, mes) - p_dia).days + 1
     return p_dia, n_dias, p_dia.weekday()
 
 def generar_png_calendario(anio, mes, titulo, regs_por_fecha, fecha_hoy):
@@ -473,6 +521,7 @@ with st.container(border=True):
         default=list(mapeo_a_corto.keys())[0],
         key="zona_pill",
         label_visibility="collapsed",
+        on_change=al_cambiar_zona,
     )
     zona_corta = mapeo_a_corto.get(zona, zona)
 
@@ -485,28 +534,32 @@ with st.container(border=True):
     for linea in info_lineas:
         st.markdown(f'<p class="muted">{html.escape(linea)}</p>', unsafe_allow_html=True)
 
-    st.markdown("##### 2. Mes que está viendo")
+    # ---- Apertura automática del mes con lugar ----
+    if "vista_manual" not in st.session_state:
+        st.session_state.vista_manual = False
     if "view_ym" not in st.session_state:
         st.session_state.view_ym = (hoy.year, hoy.month)
 
-    def shift_month(ym, delta):
-        y, m = ym
-        m += delta
-        if m < 1:
-            y, m = y - 1, 12
-        elif m > 12:
-            y, m = y + 1, 1
-        nuevo = (y, m)
-        if nuevo < (2025, 1):
-            nuevo = (2025, 1)
-        if nuevo > (2027, 12):
-            nuevo = (2027, 12)
-        return nuevo
+    salto_info = None
+    if not st.session_state.vista_manual:
+        candidato = (hoy.year, hoy.month)
+        for _ in range(MESES_ADELANTE_MAX):
+            if dias_libres_restantes(zona_corta, candidato[0], candidato[1]) > 0:
+                break
+            sig = shift_month(candidato, 1)
+            if sig == candidato:
+                break
+            candidato = sig
+        if candidato != (hoy.year, hoy.month):
+            st.session_state.view_ym = candidato
+            salto_info = candidato
 
+    st.markdown("##### 2. Mes que está viendo")
     c1, c2, c3 = st.columns([1, 2, 1])
     with c1:
         if st.button("Anterior", use_container_width=True, key="mes_prev"):
             st.session_state.view_ym = shift_month(st.session_state.view_ym, -1)
+            st.session_state.vista_manual = True
             st.rerun()
     with c2:
         y_view, m_view = st.session_state.view_ym
@@ -517,12 +570,34 @@ with st.container(border=True):
     with c3:
         if st.button("Siguiente", use_container_width=True, key="mes_next"):
             st.session_state.view_ym = shift_month(st.session_state.view_ym, 1)
+            st.session_state.vista_manual = True
             st.rerun()
 
     if st.session_state.view_ym != (hoy.year, hoy.month):
         if st.button("Ir al mes actual", use_container_width=True, key="go_today"):
             st.session_state.view_ym = (hoy.year, hoy.month)
+            st.session_state.vista_manual = True
             st.rerun()
+
+    # ---- Avisos automáticos ----
+    if salto_info:
+        st.info(
+            f"Como {meses_nombres[hoy.month]} {hoy.year} ya no tiene días libres, "
+            f"le mostramos {meses_nombres[salto_info[1]]} {salto_info[0]} para que pueda anotarse. "
+            f"Si solo quiere consultar {meses_nombres[hoy.month]}, use Anterior o Ir al mes actual."
+        )
+    elif st.session_state.view_ym == (hoy.year, hoy.month):
+        libres_hoy = dias_libres_restantes(zona_corta, hoy.year, hoy.month)
+        if 0 < libres_hoy <= UMBRAL_DIAS_LIBRES:
+            sig = shift_month((hoy.year, hoy.month), 1)
+            st.warning(
+                f"Quedan {libres_hoy} día(s) libre(s) en {meses_nombres[hoy.month]}. "
+                f"El mes siguiente ya está abierto para anotarse."
+            )
+            if st.button(f"Ver {meses_nombres[sig[1]]} {sig[0]}", use_container_width=True, key="ver_sig"):
+                st.session_state.view_ym = sig
+                st.session_state.vista_manual = True
+                st.rerun()
 
     mes_sel = st.session_state.view_ym[1]
     anio_sel = st.session_state.view_ym[0]
@@ -553,10 +628,7 @@ if not df_mes.empty:
         })
 
 primer_dia = datetime.date(anio_sel, mes_sel, 1)
-if mes_sel == 12:
-    ultimo_dia = datetime.date(anio_sel + 1, 1, 1) - timedelta(days=1)
-else:
-    ultimo_dia = datetime.date(anio_sel, mes_sel + 1, 1) - timedelta(days=1)
+ultimo_dia = ultimo_dia_de(anio_sel, mes_sel)
 dias_mes = (ultimo_dia - primer_dia).days + 1
 dia_semana_inicio = primer_dia.weekday()
 
@@ -610,7 +682,6 @@ with st.container(border=True):
     """
     st.markdown(html_cal, unsafe_allow_html=True)
 
-    # ---- Botones de descarga del calendario ----
     titulo_cal = f"{meses_nombres[mes_sel]} {anio_sel} - {zona}"
     col_d1, col_d2 = st.columns(2)
     with col_d1:
@@ -707,7 +778,6 @@ with st.container(border=True):
     if df_mes.empty:
         st.markdown('<p class="muted">Aún no hay familias anotadas este mes en este compañerismo.</p>', unsafe_allow_html=True)
 
-    # ---- Agenda día por día (solo celular) ----
     html_agenda = '<div class="solo-movil">'
     for dia in range(1, dias_mes + 1):
         f_act = datetime.date(anio_sel, mes_sel, dia)
@@ -742,7 +812,6 @@ with st.container(border=True):
     html_agenda += '</div>'
     st.markdown(html_agenda, unsafe_allow_html=True)
 
-    # ---- Lista detallada (solo escritorio / tablet) ----
     if not df_mes.empty:
         html_lista = '<div class="solo-escritorio">'
         for _, row in df_mes.sort_values("fecha").iterrows():
