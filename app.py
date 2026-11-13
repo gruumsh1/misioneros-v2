@@ -152,23 +152,29 @@ except Exception as e:
     df_db = pd.DataFrame(columns=["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
 
 # ============================================
-# LEER INFORMACIÓN DE MISIONEROS Y COLONIAS
+# LEER INFORMACIÓN DE MISIONEROS Y COLONIAS (CON RESPALDO)
 # ============================================
+COLONIAS_DEFAULT = {
+    "Apizaco 1": "Centro, Apizaco",
+    "Apizaco 2": "San José, Tetel, Santa Rosa, Cerrito, Zumpango",
+    "Apizaco 3": "Centro, Xaltocan, Santa Úrsula, San Simón",
+    "Tlaxco": "Tlaxco y comunidades",
+}
+
 try:
     response_mis = supabase.table("misioneros_info").select("*").execute()
     df_mis = pd.DataFrame(response_mis.data)
     if df_mis.empty:
-        # Estructura por defecto si la tabla está vacía
         df_mis = pd.DataFrame([
-            {"companerismo": "Apizaco 1", "misionero_1": "", "misionero_2": "", "colonia": ""},
-            {"companerismo": "Apizaco 2", "misionero_1": "", "misionero_2": "", "colonia": "San José, Tetel, Santa Rosa, Cerrito, Zumpango"},
-            {"companerismo": "Apizaco 3", "misionero_1": "", "misionero_2": "", "colonia": "Centro, Xaltocan, Santa Úrsula, San Simón"},
-            {"companerismo": "Tlaxco", "misionero_1": "", "misionero_2": "", "colonia": "Tlaxco y comunidades"},
+            {"companerismo": k, "misionero_1": "", "misionero_2": "", "colonia": v}
+            for k, v in COLONIAS_DEFAULT.items()
         ])
 except Exception:
-    df_mis = pd.DataFrame(columns=["companerismo", "misionero_1", "misionero_2", "colonia"])
+    df_mis = pd.DataFrame([
+        {"companerismo": k, "misionero_1": "", "misionero_2": "", "colonia": v}
+        for k, v in COLONIAS_DEFAULT.items()
+    ])
 
-# Catálogos dinámicos basados en base de datos
 mapeo_a_corto = {
     "Compañerismo 1": "Apizaco 1",
     "Compañerismo 2": "Apizaco 2",
@@ -189,11 +195,12 @@ def obtener_misioneros(zona_corta):
 
 def obtener_colonias(zona_corta):
     if df_mis.empty or "companerismo" not in df_mis.columns:
-        return ""
+        return COLONIAS_DEFAULT.get(zona_corta, "")
     fila = df_mis[df_mis["companerismo"] == zona_corta]
     if fila.empty:
-        return ""
-    return str(fila.iloc[0].get("colonia", "") or "").strip()
+        return COLONIAS_DEFAULT.get(zona_corta, "")
+    col = str(fila.iloc[0].get("colonia", "") or "").strip()
+    return col if col else COLONIAS_DEFAULT.get(zona_corta, "")
 
 meses_nombres = {
     1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
@@ -518,7 +525,6 @@ def generar_pdf_calendario(anio, mes, titulo, regs_por_fecha, fecha_hoy):
 with st.expander("⚙️ Panel de Administración (Modificar Colonias y Misioneros)"):
     st.markdown("Actualiza la información de los compañerismos, misioneros y colonias directamente aquí:")
     
-    # Preparamos un DataFrame editable para `misioneros_info`
     df_editable = df_mis.copy()
     
     df_resultado = st.data_editor(
@@ -535,7 +541,6 @@ with st.expander("⚙️ Panel de Administración (Modificar Colonias y Misioner
     
     if st.button("Guardar cambios de administración", type="primary"):
         try:
-            # Actualizamos cada fila en Supabase
             for _, row in df_resultado.iterrows():
                 supabase.table("misioneros_info").upsert({
                     "companerismo": row["companerismo"],
