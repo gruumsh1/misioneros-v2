@@ -71,7 +71,7 @@ h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem;color:#12395B}
 .cal-fam{font-size:.72rem;color:#1F2A37;font-weight:600;margin-top:3px;line-height:1.25;word-break:break-word}
 .cal-tel{font-size:.68rem;color:#55677A;word-break:break-word}
 
-/* ---- Agenda vertical (solo celular, vive en la tarjeta 4) ---- */
+/* ---- Agenda vertical (solo celular) ---- */
 .solo-movil{display:none}
 .agenda-row{background:#FFFFFF;border:1px solid #D9E1EA;border-radius:10px;
   padding:.55rem .6rem;margin-bottom:.45rem;display:flex;gap:.6rem;align-items:flex-start}
@@ -99,7 +99,6 @@ h2,h3{font-size:1.25rem;font-weight:700;margin-bottom:.4rem;color:#12395B}
 
 .t-corto{display:none}
 
-/* ===== Ajustes finos de ancho en celular ===== */
 @media (max-width:640px){
   .solo-escritorio{display:block}
   .solo-movil{display:block}
@@ -137,7 +136,7 @@ except Exception as e:
     st.stop()
 
 # ============================================
-# LEER REGISTROS
+# LEER REGISTROS DE COMIDAS
 # ============================================
 try:
     response = supabase.table("comidas_misioneros").select("*").order("fecha", desc=False).execute()
@@ -153,15 +152,29 @@ except Exception as e:
     df_db = pd.DataFrame(columns=["id", "companerismo", "mes_ano", "fecha", "familia", "telefono", "notas"])
 
 # ============================================
-# LEER MISIONEROS ACTUALES
+# LEER INFORMACIÓN DE MISIONEROS Y COLONIAS
 # ============================================
 try:
     response_mis = supabase.table("misioneros_info").select("*").execute()
     df_mis = pd.DataFrame(response_mis.data)
     if df_mis.empty:
-        df_mis = pd.DataFrame(columns=["companerismo", "misionero_1", "misionero_2"])
+        # Estructura por defecto si la tabla está vacía
+        df_mis = pd.DataFrame([
+            {"companerismo": "Apizaco 1", "misionero_1": "", "misionero_2": "", "colonia": ""},
+            {"companerismo": "Apizaco 2", "misionero_1": "", "misionero_2": "", "colonia": "San José, Tetel, Santa Rosa, Cerrito, Zumpango"},
+            {"companerismo": "Apizaco 3", "misionero_1": "", "misionero_2": "", "colonia": "Centro, Xaltocan, Santa Úrsula, San Simón"},
+            {"companerismo": "Tlaxco", "misionero_1": "", "misionero_2": "", "colonia": "Tlaxco y comunidades"},
+        ])
 except Exception:
-    df_mis = pd.DataFrame(columns=["companerismo", "misionero_1", "misionero_2"])
+    df_mis = pd.DataFrame(columns=["companerismo", "misionero_1", "misionero_2", "colonia"])
+
+# Catálogos dinámicos basados en base de datos
+mapeo_a_corto = {
+    "Compañerismo 1": "Apizaco 1",
+    "Compañerismo 2": "Apizaco 2",
+    "Compañerismo 3": "Apizaco 3",
+    "Compañerismo 4 (Tlaxco)": "Tlaxco",
+}
 
 def obtener_misioneros(zona_corta):
     if df_mis.empty or "companerismo" not in df_mis.columns:
@@ -174,21 +187,14 @@ def obtener_misioneros(zona_corta):
     partes = [p for p in [m1, m2] if p]
     return " / ".join(partes)
 
-# ============================================
-# CATÁLOGOS
-# ============================================
-mapeo_a_corto = {
-    "Compañerismo 1": "Apizaco 1",
-    "Compañerismo 2": "Apizaco 2",
-    "Compañerismo 3": "Apizaco 3",
-    "Compañerismo 4 (Tlaxco)": "Tlaxco",
-}
-COLONIAS = {
-    "Compañerismo 1": "",
-    "Compañerismo 2": "San José, Tetel, Santa Rosa, Cerrito, Zumpango",
-    "Compañerismo 3": "Centro, Xaltocan, Santa Úrsula, San Simón",
-    "Compañerismo 4 (Tlaxco)": "Tlaxco y comunidades",
-}
+def obtener_colonias(zona_corta):
+    if df_mis.empty or "companerismo" not in df_mis.columns:
+        return ""
+    fila = df_mis[df_mis["companerismo"] == zona_corta]
+    if fila.empty:
+        return ""
+    return str(fila.iloc[0].get("colonia", "") or "").strip()
+
 meses_nombres = {
     1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
     7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre",
@@ -220,7 +226,6 @@ def shift_month(ym, delta):
         nuevo = (2027, 12)
     return nuevo
 
-# Conjunto de fechas ocupadas por zona (para cálculos rápidos)
 ocupadas_por_zona = {}
 if not df_db.empty:
     for _, r in df_db.iterrows():
@@ -228,7 +233,6 @@ if not df_db.empty:
         ocupadas_por_zona.setdefault(str(r["companerismo"]), set()).add(fs)
 
 def dias_libres_restantes(zona_corta, anio, mes):
-    """Cuenta días anotables desde hoy hasta fin del mes (sin lunes y sin ocupados)."""
     u = ultimo_dia_de(anio, mes)
     ocup = ocupadas_por_zona.get(zona_corta, set())
     libres = 0
@@ -240,13 +244,11 @@ def dias_libres_restantes(zona_corta, anio, mes):
     return libres
 
 def al_cambiar_zona():
-    """Al cambiar de compañerismo, regresa a la vista automática del mes actual."""
     st.session_state["vista_manual"] = False
     st.session_state["view_ym"] = (hoy.year, hoy.month)
 
 # ============================================
 # GENERADORES DE IMAGEN Y PDF DEL CALENDARIO
-# (incluyen notas/comentarios y altura automática)
 # ============================================
 def _fuente(size, bold=False):
     rutas = [
@@ -507,11 +509,47 @@ def generar_pdf_calendario(anio, mes, titulo, regs_por_fecha, fecha_hoy):
     pdf.ln(4)
     pdf.set_font("Helvetica", "", 9)
     pdf.set_text_color(31, 42, 55)
-    pdf.cell(0, 6, "Libre: puede anotarse   |   Con familia: dia asignado   |   Lunes: descanso")
+    pdf.cell(0, 6, "Libre: puede anotarse    |    Con familia: dia asignado    |    Lunes: descanso")
     return pdf.output()
 
 # ============================================
-# TARJETA 1: SELECCIÓN (sin desplegables)
+# PANEL DE ADMINISTRACIÓN DE COLONIAS Y MISIONEROS
+# ============================================
+with st.expander("⚙️ Panel de Administración (Modificar Colonias y Misioneros)"):
+    st.markdown("Actualiza la información de los compañerismos, misioneros y colonias directamente aquí:")
+    
+    # Preparamos un DataFrame editable para `misioneros_info`
+    df_editable = df_mis.copy()
+    
+    df_resultado = st.data_editor(
+        df_editable,
+        column_config={
+            "companerismo": st.column_config.TextColumn("Compañerismo", disabled=True),
+            "misionero_1": st.column_config.TextColumn("Misionero 1"),
+            "misionero_2": st.column_config.TextColumn("Misionero 2"),
+            "colonia": st.column_config.TextColumn("Colonias / Sectores"),
+        },
+        hide_index=True,
+        key="editor_misioneros"
+    )
+    
+    if st.button("Guardar cambios de administración", type="primary"):
+        try:
+            # Actualizamos cada fila en Supabase
+            for _, row in df_resultado.iterrows():
+                supabase.table("misioneros_info").upsert({
+                    "companerismo": row["companerismo"],
+                    "misionero_1": row.get("misionero_1", ""),
+                    "misionero_2": row.get("misionero_2", ""),
+                    "colonia": row.get("colonia", "")
+                }, on_conflict="companerismo").execute()
+            st.success("¡Información actualizada correctamente! Recargando...")
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error al guardar los cambios: {e}")
+
+# ============================================
+# TARJETA 1: SELECCIÓN
 # ============================================
 with st.container(border=True):
     st.markdown("##### 1. Elija su compañerismo")
@@ -526,15 +564,15 @@ with st.container(border=True):
     zona_corta = mapeo_a_corto.get(zona, zona)
 
     info_lineas = []
-    if COLONIAS.get(zona):
-        info_lineas.append(f"Colonias: {COLONIAS[zona]}")
+    colonias_txt = obtener_colonias(zona_corta)
+    if colonias_txt:
+        info_lineas.append(f"Colonias: {colonias_txt}")
     mis_txt = obtener_misioneros(zona_corta)
     if mis_txt:
         info_lineas.append(f"Misioneros asignados: {mis_txt}")
     for linea in info_lineas:
         st.markdown(f'<p class="muted">{html.escape(linea)}</p>', unsafe_allow_html=True)
 
-    # ---- Apertura automática del mes con lugar ----
     if "vista_manual" not in st.session_state:
         st.session_state.vista_manual = False
     if "view_ym" not in st.session_state:
@@ -579,7 +617,6 @@ with st.container(border=True):
             st.session_state.vista_manual = True
             st.rerun()
 
-    # ---- Avisos automáticos ----
     if salto_info:
         st.info(
             f"Como {meses_nombres[hoy.month]} {hoy.year} ya no tiene días libres, "
@@ -711,7 +748,7 @@ with st.container(border=True):
             st.caption("No se pudo generar el PDF en este momento.")
 
 # ============================================
-# TARJETA 3: REGISTRO (primero la acción)
+# TARJETA 3: REGISTRO
 # ============================================
 with st.container(border=True):
     st.markdown("### Anotar a mi familia")
@@ -771,13 +808,14 @@ with st.container(border=True):
                         st.error(f"No se pudo guardar: {e}")
 
 # ============================================
-# TARJETA 4: LISTA / AGENDA (después del registro)
+# TARJETA 4: LISTA / AGENDA (Móvil y Escritorio)
 # ============================================
 with st.container(border=True):
     st.markdown(f"### Familias anotadas en {meses_nombres[mes_sel]}")
     if df_mes.empty:
         st.markdown('<p class="muted">Aún no hay familias anotadas este mes en este compañerismo.</p>', unsafe_allow_html=True)
 
+    # Vista móvil resumida
     html_agenda = '<div class="solo-movil">'
     for dia in range(1, dias_mes + 1):
         f_act = datetime.date(anio_sel, mes_sel, dia)
@@ -795,155 +833,42 @@ with st.container(border=True):
             clase += " ocupado"
 
         html_agenda += f'<div class="{clase}">'
-        html_agenda += f'<div class="agenda-dia">{DIAS_CORTOS[f_act.weekday()]} {dia}</div>'
+        html_agenda += f'<div class="agenda-dia">{dia} {DIAS_CORTOS[f_act.weekday()]}</div>'
         html_agenda += '<div class="agenda-cuerpo">'
         if es_lunes:
-            html_agenda += '<div class="agenda-estado st-descanso">DESCANSO</div>'
+            html_agenda += '<div class="agenda-estado" style="color:#55677A;">DESCANSO</div>'
         elif regs:
             for r in regs:
-                tel_clean = "".join(ch for ch in r["telefono"] if ch.isdigit() or ch == "+")
-                html_agenda += f'<div class="agenda-fam">{html.escape(r["familia"])}</div>'
-                html_agenda += f'<a href="tel:{tel_clean}">Llamar: {html.escape(r["telefono"])}</a>'
+                tel_clean = r["telefono"].replace(" ", "").replace("-", "")
+                html_agenda += f'<div class="agenda-fam">🍽️ {html.escape(r["familia"])}</div>'
+                html_agenda += f'<div><a href="https://wa.me/{tel_clean}" target="_blank">📱 {html.escape(r["telefono"])}</a></div>'
                 if r["notas"]:
-                    html_agenda += f'<div class="muted">{html.escape(r["notas"])}</div>'
+                    html_agenda += f'<div style="font-size:0.8rem; color:#55677A;">Nota: {html.escape(r["notas"])}</div>'
         else:
-            html_agenda += '<div class="agenda-estado st-libre">LIBRE</div>'
+            html_agenda += '<div class="agenda-estado" style="color:#2E6B34;">LIBRE</div>'
         html_agenda += '</div></div>'
     html_agenda += '</div>'
     st.markdown(html_agenda, unsafe_allow_html=True)
 
+    # Vista escritorio detallada
+    st.markdown('<div class="solo-escritorio" style="margin-top:1rem;">', unsafe_allow_html=True)
     if not df_mes.empty:
-        html_lista = '<div class="solo-escritorio">'
-        for _, row in df_mes.sort_values("fecha").iterrows():
-            f_obj = datetime.date.fromisoformat(str(row["fecha"])[:10])
-            tel_raw = str(row["telefono"])
-            tel_link = "".join(ch for ch in tel_raw if ch.isdigit() or ch == "+")
-            notas = str(row["notas"]) if pd.notna(row["notas"]) else ""
-            html_lista += f"""
-            <div class="reg-row">
-              <div class="reg-fecha">{DIAS_SEMANA[f_obj.weekday()]} {f_obj.day} de {meses_nombres[f_obj.month].lower()}</div>
-              <div class="reg-fam">{html.escape(str(row['familia']))}</div>
-              <a href="tel:{tel_link}">Llamar: {html.escape(tel_raw)}</a>
-            """
-            if notas:
-                html_lista += f'<div class="muted">Nota: {html.escape(notas)}</div>'
-            html_lista += '</div>'
-        html_lista += '</div>'
-        st.markdown(html_lista, unsafe_allow_html=True)
-
-# ============================================
-# TARJETA 5: ADMINISTRACIÓN (solo encargados)
-# ============================================
-with st.container(border=True):
-    with st.expander("Administración (solo encargados)"):
-        if 'admin_authenticated' not in st.session_state:
-            st.session_state.admin_authenticated = False
-
-        if not st.session_state.admin_authenticated:
-            with st.form("login_form"):
-                password = st.text_input("Contraseña", type="password")
-                if st.form_submit_button("Entrar", use_container_width=True):
-                    admin_password = st.secrets.get("admin", {}).get("password", "")
-                    if password == admin_password and admin_password:
-                        st.session_state.admin_authenticated = True
-                        st.rerun()
-                    else:
-                        st.error("Contraseña incorrecta.")
-        else:
-            st.success("Sesión de encargado activa.")
-            if st.button("Cerrar sesión"):
-                st.session_state.admin_authenticated = False
-                st.rerun()
-
-            st.markdown("#### Nombres de misioneros")
-            for zona_iter in ["Apizaco 1", "Apizaco 2", "Apizaco 3", "Tlaxco"]:
-                with st.expander(zona_iter):
-                    fila = df_mis[df_mis["companerismo"] == zona_iter] if not df_mis.empty else pd.DataFrame()
-                    m1 = str(fila.iloc[0].get("misionero_1", "") or "") if not fila.empty else ""
-                    m2 = str(fila.iloc[0].get("misionero_2", "") or "") if not fila.empty else ""
-                    with st.form(key=f"form_mis_{zona_iter}"):
-                        n1 = st.text_input("Misionero 1", value=m1, key=f"m1_{zona_iter}")
-                        n2 = st.text_input("Misionero 2", value=m2, key=f"m2_{zona_iter}")
-                        if st.form_submit_button("Guardar nombres", use_container_width=True):
-                            try:
-                                if fila.empty:
-                                    supabase.table("misioneros_info").insert({
-                                        "companerismo": zona_iter,
-                                        "misionero_1": n1, "misionero_2": n2,
-                                    }).execute()
-                                else:
-                                    supabase.table("misioneros_info").update({
-                                        "misionero_1": n1, "misionero_2": n2,
-                                        "actualizado_el": datetime.datetime.now().isoformat(),
-                                    }).eq("companerismo", zona_iter).execute()
-                                st.success("Nombres actualizados.")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"No se pudo guardar: {e}")
-
-            st.markdown("#### Respaldo de información")
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("Descargar todo (CSV)", use_container_width=True):
-                    resp = supabase.table("comidas_misioneros").select("*").execute()
-                    df_all = pd.DataFrame(resp.data)
-                    if not df_all.empty:
-                        st.download_button(
-                            "Bajar archivo",
-                            df_all.to_csv(index=False, encoding='utf-8-sig'),
-                            file_name=f"respaldo_{datetime.date.today().strftime('%Y%m%d')}.csv",
-                            mime="text/csv",
-                        )
-            with c2:
-                if st.button(f"Descargar {meses_nombres[mes_sel]}", use_container_width=True):
-                    if not df_mes.empty:
-                        st.download_button(
-                            "Bajar archivo",
-                            df_mes.to_csv(index=False, encoding='utf-8-sig'),
-                            file_name=f"respaldo_{periodo_str}.csv",
-                            mime="text/csv",
-                        )
-
-            st.markdown("#### Corregir o borrar registros del mes")
-            if df_mes.empty:
-                st.markdown('<p class="muted">No hay registros este mes.</p>', unsafe_allow_html=True)
-            else:
-                for _, row in df_mes.sort_values("fecha").iterrows():
-                    rid = row["id"]
-                    c1, c2, c3 = st.columns([3, 1, 1])
-                    c1.markdown(f"**{row['fecha']}** · {html.escape(str(row['familia']))}")
-                    if c2.button("Editar", key=f"e_{rid}"):
-                        st.session_state[f"editando_{rid}"] = True
-                    if c3.button("Borrar", key=f"d_{rid}"):
-                        st.session_state[f"eliminando_{rid}"] = True
-
-                for _, row in df_mes.iterrows():
-                    rid = row["id"]
-                    if st.session_state.get(f"editando_{rid}"):
-                        with st.form(key=f"fe_{rid}"):
-                            st.markdown(f"**Editando {row['fecha']}**")
-                            en = st.text_input("Nombre", value=row["familia"], key=f"en_{rid}")
-                            et = st.text_input("Teléfono", value=row["telefono"], key=f"et_{rid}")
-                            eo = st.text_area("Nota", value=row["notas"] if pd.notna(row["notas"]) else "", key=f"eo_{rid}")
-                            s1, s2 = st.columns(2)
-                            guardar = s1.form_submit_button("Guardar cambios")
-                            cancelar = s2.form_submit_button("Cancelar")
-                            if guardar:
-                                supabase.table("comidas_misioneros").update({
-                                    "familia": en, "telefono": et, "notas": eo,
-                                }).eq("id", rid).execute()
-                                st.session_state[f"editando_{rid}"] = False
-                                st.rerun()
-                            if cancelar:
-                                st.session_state[f"editando_{rid}"] = False
-                                st.rerun()
-                    if st.session_state.get(f"eliminando_{rid}"):
-                        st.markdown(f"**¿Borrar el registro del {row['fecha']} de {html.escape(str(row['familia']))}?**")
-                        s1, s2 = st.columns(2)
-                        if s1.button("Sí, borrar", key=f"sd_{rid}", type="primary"):
-                            supabase.table("comidas_misioneros").delete().eq("id", rid).execute()
-                            st.session_state[f"eliminando_{rid}"] = False
-                            st.rerun()
-                        if s2.button("No, conservar", key=f"nd_{rid}"):
-                            st.session_state[f"eliminando_{rid}"] = False
-                            st.rerun()
+        for _, row in df_mes.iterrows():
+            f_dt = datetime.date.fromisoformat(str(row["fecha"])[:10])
+            f_fmt = f_dt.strftime("%d/%m/%Y")
+            dia_sem = DIAS_SEMANA[f_dt.weekday()]
+            tel_clean = str(row["telefono"]).replace(" ", "").replace("-", "")
+            
+            nota_html = f" · <em>Nota: {html.escape(str(row['notas']))}</em>" if row.get("notas") else ""
+            st.markdown(
+                f"""
+                <div class="reg-row">
+                    <span class="reg-fecha">{f_fmt} ({dia_sem})</span><br>
+                    <span class="reg-fam">🍽️ {html.escape(str(row['familia']))}</span> · 
+                    <a href="https://wa.me/{tel_clean}" target="_blank">📱 {html.escape(str(row['telefono']))}</a>
+                    {nota_html}
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+    st.markdown('</div>', unsafe_allow_html=True)
