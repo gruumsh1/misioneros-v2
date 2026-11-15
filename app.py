@@ -155,10 +155,11 @@ except Exception as e:
 # LEER INFORMACIÓN DE MISIONEROS Y COLONIAS (CON RESPALDO)
 # ============================================
 COLONIAS_DEFAULT = {
-    "Apizaco 1": "Centro, Apizaco",
-    "Apizaco 2": "San José, Tetel, Santa Rosa, Cerrito, Zumpango",
-    "Apizaco 3": "Centro, Xaltocan, Santa Úrsula, San Simón",
-    "Tlaxco": "Tlaxco y comunidades",
+    "Apizaco I": "Santa Ursula, San Dionisio",
+    "Apizaco II": "Centro",
+    "Apizaco III": "Atexcatzingo, San jose tetel",
+    "Apizaco Central": "Centro",
+    "Tlaxco": "Tlaxco",
 }
 
 try:
@@ -166,8 +167,11 @@ try:
     df_mis = pd.DataFrame(response_mis.data)
     if df_mis.empty:
         df_mis = pd.DataFrame([
-            {"companerismo": k, "misionero_1": "", "misionero_2": "", "colonia": v}
-            for k, v in COLONIAS_DEFAULT.items()
+            {"companerismo": "Apizaco I", "misionero_1": "E. Montesinos", "misionero_2": "McAvoy", "colonia": COLONIAS_DEFAULT["Apizaco I"]},
+            {"companerismo": "Apizaco II", "misionero_1": "E. Souto", "misionero_2": "Christensen y Day", "colonia": COLONIAS_DEFAULT["Apizaco II"]},
+            {"companerismo": "Apizaco III", "misionero_1": "E. Menjivar", "misionero_2": "Reck", "colonia": COLONIAS_DEFAULT["Apizaco III"]},
+            {"companerismo": "Apizaco Central", "misionero_1": "H. Howard", "misionero_2": "H. Muir", "colonia": COLONIAS_DEFAULT["Apizaco Central"]},
+            {"companerismo": "Tlaxco", "misionero_1": "E. Perez", "misionero_2": "Lyman", "colonia": COLONIAS_DEFAULT["Tlaxco"]},
         ])
 except Exception:
     df_mis = pd.DataFrame([
@@ -176,10 +180,11 @@ except Exception:
     ])
 
 mapeo_a_corto = {
-    "Compañerismo 1": "Apizaco 1",
-    "Compañerismo 2": "Apizaco 2",
-    "Compañerismo 3": "Apizaco 3",
-    "Compañerismo 4 (Tlaxco)": "Tlaxco",
+    "Apizaco I": "Apizaco I",
+    "Apizaco II": "Apizaco II",
+    "Apizaco III": "Apizaco III",
+    "Apizaco Central": "Apizaco Central",
+    "Tlaxco": "Tlaxco",
 }
 
 def obtener_misioneros(zona_corta):
@@ -530,10 +535,12 @@ with st.expander("⚙️ Panel de Administración (Modificar Colonias y Misioner
     df_resultado = st.data_editor(
         df_editable,
         column_config={
+            "id": st.column_config.NumberColumn("ID", disabled=True),
             "companerismo": st.column_config.TextColumn("Compañerismo", disabled=True),
             "misionero_1": st.column_config.TextColumn("Misionero 1"),
             "misionero_2": st.column_config.TextColumn("Misionero 2"),
             "colonia": st.column_config.TextColumn("Colonias / Sectores"),
+            "actualizado_el": None
         },
         hide_index=True,
         key="editor_misioneros"
@@ -542,12 +549,16 @@ with st.expander("⚙️ Panel de Administración (Modificar Colonias y Misioner
     if st.button("Guardar cambios de administración", type="primary"):
         try:
             for _, row in df_resultado.iterrows():
-                supabase.table("misioneros_info").upsert({
-                    "companerismo": row["companerismo"],
+                data_update = {
                     "misionero_1": row.get("misionero_1", ""),
                     "misionero_2": row.get("misionero_2", ""),
                     "colonia": row.get("colonia", "")
-                }, on_conflict="companerismo").execute()
+                }
+                if "id" in row and pd.notna(row["id"]):
+                    supabase.table("misioneros_info").update(data_update).eq("id", int(row["id"])).execute()
+                else:
+                    supabase.table("misioneros_info").update(data_update).eq("companerismo", row["companerismo"]).execute()
+
             st.success("¡Información actualizada correctamente! Recargando...")
             st.rerun()
         except Exception as e:
