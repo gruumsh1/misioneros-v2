@@ -525,11 +525,10 @@ def generar_pdf_calendario(anio, mes, titulo, regs_por_fecha, fecha_hoy):
     return pdf.output()
 
 # ============================================
-# PANEL DE ADMINISTRACIÓN DE COLONIAS Y MISIONEROS
+# PANEL DE ADMINISTRACIÓN COMPLETO
 # ============================================
-with st.expander("⚙️ Panel de Administración (Modificar Colonias y Misioneros)"):
-    st.markdown("Actualiza la información de los compañerismos, misioneros y colonias directamente aquí:")
-    
+with st.expander("⚙️ Panel de Administración (Misioneros, Colonias y Registros)"):
+    st.markdown("### 1. Administrar Compañerismos y Colonias")
     df_editable = df_mis.copy()
     
     df_resultado = st.data_editor(
@@ -546,7 +545,7 @@ with st.expander("⚙️ Panel de Administración (Modificar Colonias y Misioner
         key="editor_misioneros"
     )
     
-    if st.button("Guardar cambios de administración", type="primary"):
+    if st.button("Guardar cambios de misioneros/colonias", type="primary"):
         try:
             for _, row in df_resultado.iterrows():
                 data_update = {
@@ -558,11 +557,56 @@ with st.expander("⚙️ Panel de Administración (Modificar Colonias y Misioner
                     supabase.table("misioneros_info").update(data_update).eq("id", int(row["id"])).execute()
                 else:
                     supabase.table("misioneros_info").update(data_update).eq("companerismo", row["companerismo"]).execute()
-
-            st.success("¡Información actualizada correctamente! Recargando...")
+            st.success("¡Información de misioneros actualizada correctamente!")
             st.rerun()
         except Exception as e:
-            st.error(f"Error al guardar los cambios: {e}")
+            st.error(f"Error al guardar: {e}")
+
+    st.markdown("---")
+    st.markdown("### 2. Modificar o Cancelar Registros de Comidas")
+    st.markdown("Aquí puedes editar directamente los datos o eliminar cualquier registro existente en la base de datos:")
+    
+    if not df_db.empty:
+        df_db_editable = df_db.copy()
+        # Ordenar por fecha
+        df_db_editable = df_db_editable.sort_values(by="fecha", ascending=False)
+        
+        df_reg_resultado = st.data_editor(
+            df_db_editable,
+            column_config={
+                "id": st.column_config.NumberColumn("ID", disabled=True),
+                "companerismo": st.column_config.TextColumn("Compañerismo"),
+                "mes_ano": st.column_config.TextColumn("Mes/Año"),
+                "fecha": st.column_config.TextColumn("Fecha (YYYY-MM-DD)"),
+                "familia": st.column_config.TextColumn("Familia / Persona"),
+                "telefono": st.column_config.TextColumn("Teléfono"),
+                "notas": st.column_config.TextColumn("Notas"),
+            },
+            hide_index=True,
+            key="editor_registros_admin"
+        )
+        
+        col_r1, col_r2 = st.columns(2)
+        with col_r1:
+            if st.button("💾 Guardar cambios en registros", type="primary"):
+                try:
+                    for _, row in df_reg_resultado.iterrows():
+                        supabase.table("comidas_misioneros").update({
+                            "companerismo": row["companerismo"],
+                            "mes_ano": row["mes_ano"],
+                            "fecha": str(row["fecha"])[:10],
+                            "familia": row["familia"],
+                            "telefono": row["telefono"],
+                            "notas": row["notas"]
+                        }).eq("id", int(row["id"])).execute()
+                    st.success("¡Registros actualizados con éxito!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error al actualizar registros: {e}")
+        with col_r2:
+            st.markdown("<p style='font-size:0.85rem; color:#55677A; margin-top:10px;'>*Para eliminar un registro, puedes vaciar sus campos o gestionar la base de datos directamente.</p>", unsafe_allow_html=True)
+    else:
+        st.info("No hay registros de comidas en la base de datos todavía.")
 
 # ============================================
 # TARJETA 1: SELECCIÓN
@@ -686,7 +730,7 @@ dias_mes = (ultimo_dia - primer_dia).days + 1
 dia_semana_inicio = primer_dia.weekday()
 
 # ============================================
-# TARJETA 2: CALENDARIO + DESCARGAS (¡AHORA VISIBLE DE NUEVO!)
+# TARJETA 2: CALENDARIO + DESCARGAS
 # ============================================
 with st.container(border=True):
     st.markdown(f"### {meses_nombres[mes_sel]} {anio_sel} · {zona}")
@@ -764,120 +808,64 @@ with st.container(border=True):
             st.caption("No se pudo generar el PDF en este momento.")
 
 # ============================================
-# TARJETA 3: REGISTRO Y MODIFICACIÓN
+# TARJETA 3: REGISTRO (Solo para los hermanos)
 # ============================================
 with st.container(border=True):
-    tab_reg, tab_mod = st.tabs(["✍️ Anotar a mi familia", "✏️ Modificar o Cancelar mi registro"])
+    st.markdown("### Anotar a mi familia")
 
-    # --- PESTAÑA 1: NUEVO REGISTRO ---
-    with tab_reg:
-        fechas_ocupadas = set(registros_por_fecha.keys())
-        fechas_disponibles = [
-            datetime.date(anio_sel, mes_sel, d)
-            for d in range(1, dias_mes + 1)
-            if datetime.date(anio_sel, mes_sel, d).weekday() != 0
-            and str(datetime.date(anio_sel, mes_sel, d)) not in fechas_ocupadas
-            and datetime.date(anio_sel, mes_sel, d) >= hoy
-        ]
+    fechas_ocupadas = set(registros_por_fecha.keys())
+    fechas_disponibles = [
+        datetime.date(anio_sel, mes_sel, d)
+        for d in range(1, dias_mes + 1)
+        if datetime.date(anio_sel, mes_sel, d).weekday() != 0
+        and str(datetime.date(anio_sel, mes_sel, d)) not in fechas_ocupadas
+        and datetime.date(anio_sel, mes_sel, d) >= hoy
+    ]
 
-        if ultimo_dia < hoy:
-            st.info("Está viendo un mes pasado. Solo consulta; los registros nuevos se hacen en el mes actual o en meses futuros.")
-        elif not fechas_disponibles:
-            st.warning("No quedan días disponibles este mes. Revise el siguiente mes.")
-        else:
-            with st.form("form_registro", clear_on_submit=True):
-                st.markdown("**Día disponible** (toque el campo para abrir el calendario)")
-                min_fechar = max(datetime.date(anio_sel, mes_sel, 1), hoy)
-                f_fecha = st.date_input(
-                    "Día",
-                    min_value=min_fechar,
-                    max_value=datetime.date(anio_sel, mes_sel, dias_mes),
-                    value=fechas_disponibles[0] if fechas_disponibles else min_fechar,
-                    label_visibility="collapsed",
-                )
-                f_nombre = st.text_input("Nombre de la familia o persona")
-                f_tel = st.text_input("Teléfono de WhatsApp")
-                f_notas = st.text_area("Nota opcional (hora acordada, restricciones)")
+    if ultimo_dia < hoy:
+        st.info("Está viendo un mes pasado. Solo consulta; los registros nuevos se hacen en el mes actual o en meses futuros.")
+    elif not fechas_disponibles:
+        st.warning("No quedan días disponibles este mes. Revise el siguiente mes.")
+    else:
+        with st.form("form_registro", clear_on_submit=True):
+            st.markdown("**Día disponible** (toque el campo para abrir el calendario)")
+            min_fechar = max(datetime.date(anio_sel, mes_sel, 1), hoy)
+            f_fecha = st.date_input(
+                "Día",
+                min_value=min_fechar,
+                max_value=datetime.date(anio_sel, mes_sel, dias_mes),
+                value=fechas_disponibles[0] if fechas_disponibles else min_fechar,
+                label_visibility="collapsed",
+            )
+            f_nombre = st.text_input("Nombre de la familia o persona")
+            f_tel = st.text_input("Teléfono de WhatsApp")
+            f_notas = st.text_area("Nota opcional (hora acordada, restricciones)")
 
-                enviado = st.form_submit_button("Guardar mi registro", type="primary", use_container_width=True)
+            enviado = st.form_submit_button("Guardar mi registro", type="primary", use_container_width=True)
 
-                if enviado:
-                    if not f_nombre.strip() or not f_tel.strip():
-                        st.error("Escriba al menos su nombre y su teléfono.")
-                    elif f_fecha < hoy:
-                        st.error("No puede anotarse en una fecha pasada.")
-                    elif f_fecha.weekday() == 0:
-                        st.error("Los lunes son día de descanso. Elija otro día.")
-                    elif str(f_fecha) in fechas_ocupadas:
-                        st.error("Ese día ya está ocupado. Elija otro día libre.")
-                    else:
-                        try:
-                            supabase.table("comidas_misioneros").insert({
-                                "companerismo": zona_corta,
-                                "mes_ano": periodo_str,
-                                "fecha": str(f_fecha),
-                                "familia": f_nombre.strip(),
-                                "telefono": f_tel.strip(),
-                                "notas": f_notas.strip(),
-                            }).execute()
-                            st.success(f"Listo. Su familia quedó anotada el {f_fecha.strftime('%d/%m/%Y')}.")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"No se pudo guardar: {e}")
-
-    # --- PESTAÑA 2: MODIFICAR O CANCELAR REGISTRO ---
-    with tab_mod:
-        st.markdown("¿Te equivocaste en un dato o necesitas cambiar de fecha? Busca tu registro ingresando el **teléfono** con el que te registraste:")
-        
-        busqueda_tel = st.text_input("Introduce tu teléfono de registro", key="input_busqueda_tel")
-        
-        if busqueda_tel.strip():
-            matches = []
-            if not df_mes.empty:
-                for _, r in df_mes.iterrows():
-                    if busqueda_tel.strip() in str(r.get("telefono", "")):
-                        matches.append(r)
-            
-            if not matches:
-                st.warning("No se encontró ningún registro en este mes con ese número de teléfono.")
-            else:
-                st.success(f"¡Se encontró {len(matches)} registro(s) con este número!")
-                for reg in matches:
-                    reg_id = reg["id"]
-                    f_actual = datetime.date.fromisoformat(str(reg["fecha"])[:10])
-                    
-                    with st.form(f"form_edit_{reg_id}"):
-                        st.markdown(f"**Fecha actual:** {f_actual.strftime('%d/%m/%Y')}")
-                        
-                        nuevo_nombre = st.text_input("Nombre de la familia", value=str(reg["familia"]), key=f"nombre_{reg_id}")
-                        nuevo_tel = st.text_input("Teléfono de WhatsApp", value=str(reg["telefono"]), key=f"tel_{reg_id}")
-                        nueva_nota = st.text_area("Nota opcional", value=str(reg["notas"] if pd.notna(reg["notas"]) else ""), key=f"nota_{reg_id}")
-                        
-                        col_btn1, col_btn2 = st.columns(2)
-                        with col_btn1:
-                            guardar_cambios = st.form_submit_button("💾 Guardar Cambios", type="primary", use_container_width=True)
-                        with col_btn2:
-                            eliminar_reg = st.form_submit_button("🗑️ Cancelar Registro", use_container_width=True)
-                        
-                        if guardar_cambios:
-                            try:
-                                supabase.table("comidas_misioneros").update({
-                                    "familia": nuevo_nombre.strip(),
-                                    "telefono": nuevo_tel.strip(),
-                                    "notas": nueva_nota.strip()
-                                }).eq("id", reg_id).execute()
-                                st.success("¡Registro actualizado con éxito!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error al actualizar: {e}")
-                                
-                        if eliminar_reg:
-                            try:
-                                supabase.table("comidas_misioneros").delete().eq("id", reg_id).execute()
-                                st.warning("El registro ha sido eliminado del calendario.")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Error al eliminar: {e}")
+            if enviado:
+                if not f_nombre.strip() or not f_tel.strip():
+                    st.error("Escriba al menos su nombre y su teléfono.")
+                elif f_fecha < hoy:
+                    st.error("No puede anotarse en una fecha pasada.")
+                elif f_fecha.weekday() == 0:
+                    st.error("Los lunes son día de descanso. Elija otro día.")
+                elif str(f_fecha) in fechas_ocupadas:
+                    st.error("Ese día ya está ocupado. Elija otro día libre.")
+                else:
+                    try:
+                        supabase.table("comidas_misioneros").insert({
+                            "companerismo": zona_corta,
+                            "mes_ano": periodo_str,
+                            "fecha": str(f_fecha),
+                            "familia": f_nombre.strip(),
+                            "telefono": f_tel.strip(),
+                            "notas": f_notas.strip(),
+                        }).execute()
+                        st.success(f"Listo. Su familia quedó anotada el {f_fecha.strftime('%d/%m/%Y')}.")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"No se pudo guardar: {e}")
 
 # ============================================
 # TARJETA 4: LISTA / AGENDA (Móvil y Escritorio)
